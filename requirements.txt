@@ -1,2 +1,8 @@
--e ../MDFM
+# Core library from the neighbouring MDFM folder, with the faster ODE solves and the JAX backend of the fits.
+# -e: changes in MDFM take effect without reinstalling. Run pip from the root of this repository.
+-e ../MDFM[numba,jax]
+# Reading the data
+openpyxl>=3.1
+# OpenBIS download; PyBIS needs pydantic < 2
 PyBIS==1.36.3
+pydantic<2.0
