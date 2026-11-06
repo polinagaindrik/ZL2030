@@ -13,7 +13,7 @@ if __name__ == "__main__":
 
     path_calibr = 'out/main_ZL2030_withS/new_result2/calibration/'
     add_name = '_calibr'#'_exps1_9' #'_true' #
-    df_names = [f'dataframe_mibi{add_name}.pkl', f'dataframe_maldi{add_name}.pkl', f'dataframe_ngs{add_name}.pkl']
+    df_names = [f'dataframe_platecount{add_name}.pkl', f'dataframe_maldi{add_name}.pkl', f'dataframe_ngs{add_name}.pkl']
     df_calibr = [pd.read_pickle(path_calibr+df_name) for df_name in df_names]
     df_calibr = fm.dtf.filter_dataframe_regex('V.._', df_calibr)
     exps = sorted(list(set([s.split('_')[0] for s in df_calibr[0].columns])))
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     }
     # for 6h T-interruption
     add_name = '_prediction_6h'
-    df_names = [f'dataframe_mibi{add_name}.pkl', f'dataframe_maldi{add_name}.pkl', f'dataframe_ngs{add_name}.pkl']
+    df_names = [f'dataframe_platecount{add_name}.pkl', f'dataframe_maldi{add_name}.pkl', f'dataframe_ngs{add_name}.pkl']
     dfs_prediction = [pd.read_pickle(path2+df_name) for df_name in df_names]
     dfs_prediction = [fm.dtf.drop_column(df, ['V10_', 'V10-CCD02']) for df in dfs_prediction]
     exps_predict = sorted(list(set([s.split('_')[0] for s in dfs_prediction[0].columns])))
@@ -49,18 +49,18 @@ if __name__ == "__main__":
     for exp in exps_predict:
         x0_vals += x0_opt[exp]
     t_model = np.linspace(0., 17., 100)
-    x_count, obs_mibi_model, obs_maldi_model, obs_ngsi_model, _ = fm.mdl.calc_obs_model(dfs_prediction, np.concatenate((x0_vals, param_ode)), predict_setup, t_model)
+    x_count, obs_platecount_model, obs_maldi_model, obs_ngsi_model, _ = fm.mdl.calc_obs_model(dfs_prediction, np.concatenate((x0_vals, param_ode)), predict_setup, t_model)
     #labels = ('day', r'log CFU mL$^{-1}$')
     labels = ('Tag',  r'log CFU mL$^{-1}$')
     for j, media in enumerate(['MRS', 'PC']):
         zl.plot_measurements_ZL2030_Tunterbrech(dfs_prediction[0].filter(like=media), exps_predict, mtimes=t_model,
-                                             mestim=obs_mibi_model[:,j, : ], dir=path2, add_name=f'MiBi_{media}_Tunterbrechung_6St')
+                                             mestim=obs_platecount_model[:,j, : ], dir=path2, add_name=f'platecount_{media}_Tunterbrechung_6St')
     
     #    12h T-interruption
     path2 = 'out/main_ZL2030_withS/new_result2/prediction/x0_optim/12h_interruption/'
     predict_setup['output_path'] = path2
     add_name = '_prediction_12h'
-    df_names = [f'dataframe_mibi{add_name}.pkl', f'dataframe_maldi{add_name}.pkl', f'dataframe_ngs{add_name}.pkl']
+    df_names = [f'dataframe_platecount{add_name}.pkl', f'dataframe_maldi{add_name}.pkl', f'dataframe_ngs{add_name}.pkl']
     dfs_prediction = [pd.read_pickle(path2+df_name) for df_name in df_names]
     dfs_prediction = [fm.dtf.drop_column(df, ['V10_', 'V10-CCD01']) for df in dfs_prediction]
     exps_predict = sorted(list(set([s.split('_')[0] for s in dfs_prediction[0].columns])))
@@ -68,27 +68,27 @@ if __name__ == "__main__":
     x0_vals = []
     for exp in exps_predict:
        x0_vals += x0_opt[exp]
-    x_count, obs_mibi_model, obs_maldi_model, obs_ngsi_model, _ = fm.mdl.calc_obs_model(dfs_prediction, np.concatenate((x0_vals, param_ode)), predict_setup, t_model)
+    x_count, obs_platecount_model, obs_maldi_model, obs_ngsi_model, _ = fm.mdl.calc_obs_model(dfs_prediction, np.concatenate((x0_vals, param_ode)), predict_setup, t_model)
     for j, media in enumerate(['MRS', 'PC']):
         zl.plot_measurements_ZL2030_Tunterbrech(dfs_prediction[0].filter(like=media), exps_predict, mtimes=t_model,
-                                             mestim=obs_mibi_model[:,j, : ], dir=path2, add_name=f'MiBi_{media}_Tunterbrechung_12St')
+                                             mestim=obs_platecount_model[:,j, : ], dir=path2, add_name=f'platecount_{media}_Tunterbrechung_12St')
 
     dfs_prediction0 = fm.dtf.filter_dataframe_regex('V17', dfs_prediction)
     exps_predict0 = sorted(list(set([s.split('_')[0] for s in dfs_prediction0[0].columns])))
     x0_vals = []
     for exp in exps_predict0:
        x0_vals += x0_opt[exp]
-    x_count, obs_mibi_model0, obs_maldi_model0, obs_ngsi_model0, _ = fm.mdl.calc_obs_model(dfs_prediction0, np.concatenate((x0_vals, param_ode)), predict_setup, t_model)
+    x_count, obs_platecount_model0, obs_maldi_model0, obs_ngsi_model0, _ = fm.mdl.calc_obs_model(dfs_prediction0, np.concatenate((x0_vals, param_ode)), predict_setup, t_model)
 
     for j, media in enumerate(['MRS', 'PC']):
         zl.plot_measurements_ZL2030_Tunterbrech(dfs_prediction0[0].filter(like=media), exps_predict0, mtimes=t_model,
-                                             mestim=obs_mibi_model0[:,j, : ], dir=path2, add_name=f'MiBi_{media}_Tunterbrechung_12St_V17')
+                                             mestim=obs_platecount_model0[:,j, : ], dir=path2, add_name=f'platecount_{media}_Tunterbrechung_12St_V17')
     
 # For x0lambda optimization:
 # for 6h T-interruption
     path2 = 'out/main_ZL2030_withS/new_result2/prediction/x0lambda_optim/6h_interruption/'
     add_name = '_prediction_6h'
-    df_names = [f'dataframe_mibi{add_name}.pkl', f'dataframe_maldi{add_name}.pkl', f'dataframe_ngs{add_name}.pkl']
+    df_names = [f'dataframe_platecount{add_name}.pkl', f'dataframe_maldi{add_name}.pkl', f'dataframe_ngs{add_name}.pkl']
     dfs_prediction = [pd.read_pickle(path2+df_name) for df_name in df_names]
     dfs_prediction = [fm.dtf.drop_column(df, ['V10_', 'V10-CCD02']) for df in dfs_prediction]
     exps_predict = sorted(list(set([s.split('_')[0] for s in dfs_prediction[0].columns])))
@@ -109,9 +109,9 @@ if __name__ == "__main__":
     param_ode = param_ode[n_cl:]
 
     t_model = np.linspace(0., 17., 100)
-    x_count, obs_mibi_model, obs_maldi_model, obs_ngs_model, _ = fm.mdl.calc_obs_model(dfs_prediction, np.concatenate((res_opt, param_ode)), predict_setup, t_model)
+    x_count, obs_platecount_model, obs_maldi_model, obs_ngs_model, _ = fm.mdl.calc_obs_model(dfs_prediction, np.concatenate((res_opt, param_ode)), predict_setup, t_model)
     #labels = ('day', r'log CFU mL$^{-1}$')
     labels = ('Tag',  r'log CFU mL$^{-1}$')
     for j, media in enumerate(['MRS', 'PC']):
         zl.plot_measurements_ZL2030_Tunterbrech(dfs_prediction[0].filter(like=media), exps_predict, mtimes=t_model,
-                                             mestim=obs_mibi_model[:,j, : ], dir=path2, add_name=f'MiBi_{media}_Tunterbrechung_6St')
+                                             mestim=obs_platecount_model[:,j, : ], dir=path2, add_name=f'platecount_{media}_Tunterbrechung_6St')

@@ -27,10 +27,10 @@ def get_bacteria_for_model(exps_maldi, exps_ngs, path_data, cutoff=0., cutoff_pr
     return bact_all, df_maldi.T[bact_all].T, df_ngs.T[bact_all].T
 
 
-def read_all_data_in_df(exps_mibi, exps_maldi, exps_ngs, path_data, path_out, bact_all=None, cutoff=0., cutoff_prop=0., add_name=''):
+def read_all_data_in_df(exps_platecount, exps_maldi, exps_ngs, path_data, path_out, bact_all=None, cutoff=0., cutoff_prop=0., add_name=''):
     """Load, align, and save calibration dataframes for the selected experiments."""
-    df_mibi = get_all_experiments_dataframe(read_mibi, exps_mibi, path_data+'microbiology/')
-    df_mibi =dtf.drop_column(df_mibi, ['M2', 'VRBD'])
+    df_platecount = get_all_experiments_dataframe(read_platecount, exps_platecount, path_data+'microbiology/')
+    df_platecount =dtf.drop_column(df_platecount, ['M2', 'VRBD'])
     if bact_all is None:
         df_maldi = get_all_experiments_dataframe(read_maldi, exps_maldi, path_data+'MALDI/')
         df_ngs = get_all_experiments_dataframe(read_ngs, exps_ngs, path_data+'NGS/')
@@ -53,12 +53,12 @@ def read_all_data_in_df(exps_mibi, exps_maldi, exps_ngs, path_data, path_out, ba
         ind_med_null = [bact_all.index(i) for i in list(bact_med_null)]
         s_x_predefined[i, ind_med_null] = 0.
 
-    data = [df_mibi, df_maldi, df_ngs]
-    df_mibi.to_pickle(path_out+f'dataframe_mibi{add_name}.pkl')
+    data = [df_platecount, df_maldi, df_ngs]
+    df_platecount.to_pickle(path_out+f'dataframe_platecount{add_name}.pkl')
     df_maldi.to_pickle(path_out+f'dataframe_maldi{add_name}.pkl') 
     df_ngs.to_pickle(path_out+f'dataframe_ngs{add_name}.pkl')
 
-    df_mibi.to_csv(path_out+f'dataframe_mibi{add_name}.csv', index=False)
+    df_platecount.to_csv(path_out+f'dataframe_platecount{add_name}.csv', index=False)
     df_maldi.to_csv(path_out+f'dataframe_maldi{add_name}.csv')
     df_ngs.to_csv(path_out+f'dataframe_ngs{add_name}.csv')
 
@@ -67,18 +67,18 @@ def read_all_data_in_df(exps_mibi, exps_maldi, exps_ngs, path_data, path_out, ba
     return data, T_x, s_x_predefined
 
 
-def prepare_ZL2030_data(exps_mibi, exps_maldi, exps_ngs, cutoff=0., cutoff_prop=0., path='', add_name=''):
+def prepare_ZL2030_data(exps_platecount, exps_maldi, exps_ngs, cutoff=0., cutoff_prop=0., path='', add_name=''):
     """Prepare the ZL2030 calibration data and return observations and filtering defaults."""
     bact_all, df_maldi_all, df_ngs_all = get_bacteria_for_model(exps_maldi, exps_ngs, 'experiments/', cutoff=cutoff, cutoff_prop=cutoff_prop)
-    dfs_calibr, T_x, s_x_predefined = read_all_data_in_df(exps_mibi, exps_maldi, exps_ngs, 'experiments/', path, bact_all=bact_all,
+    dfs_calibr, T_x, s_x_predefined = read_all_data_in_df(exps_platecount, exps_maldi, exps_ngs, 'experiments/', path, bact_all=bact_all,
                                                           cutoff=cutoff, cutoff_prop=cutoff_prop, add_name=add_name)
     return dfs_calibr, bact_all, T_x, s_x_predefined
 
 
 def prepare_ZL2030_data_for_prediction(exps, bact_all, path_data, path_out='', add_name=''):
     """Load prediction experiments and align their bacteria to the calibration set."""
-    df_mibi = get_all_experiments_dataframe(read_mibi, exps, path_data+'microbiology/')
-    df_mibi = dtf.drop_column(df_mibi, ['M2', 'VRBD'])
+    df_platecount = get_all_experiments_dataframe(read_platecount, exps, path_data+'microbiology/')
+    df_platecount = dtf.drop_column(df_platecount, ['M2', 'VRBD'])
     df_maldi = get_all_experiments_dataframe(read_maldi, exps, path_data+'MALDI/')
     df_maldi = dtf.drop_column(df_maldi, ['M2', 'VRBD'])
     df_maldi, _ = dtf.preprocess_dataframe(df_maldi, cutoff=0., cutoff_prop=0., calc_prop=False)
@@ -94,12 +94,12 @@ def prepare_ZL2030_data_for_prediction(exps, bact_all, path_data, path_out='', a
     #df_maldi, bact_all = add_rest_bacteria(df_maldi, bact_all)
     #df_ngs, bact_all = add_rest_bacteria(df_ngs, bact_all)
 
-    for df, meas in zip([df_mibi, df_maldi, df_ngs], ['mibi', 'maldi', 'ngs']):
+    for df, meas in zip([df_platecount, df_maldi, df_ngs], ['platecount', 'maldi', 'ngs']):
         df.to_pickle(path_out+f'dataframe_{meas}{add_name}.pkl')
-    df_mibi.to_csv(path_out+f'dataframe_mibi{add_name}.csv', index=False)
+    df_platecount.to_csv(path_out+f'dataframe_platecount{add_name}.csv', index=False)
     df_maldi.to_csv(path_out+f'dataframe_maldi{add_name}.csv')
     df_ngs.to_csv(path_out+f'dataframe_ngs{add_name}.csv')
-    return [df_mibi, df_maldi, df_ngs]
+    return [df_platecount, df_maldi, df_ngs]
 
 
 def _get_exp_filename(exp_name):
@@ -127,7 +127,7 @@ def _correct_df_for_tempinterruption(df):
     return df
 
 
-def read_mibi(exp_name, dir_data=''):
+def read_platecount(exp_name, dir_data=''):
     """Read and normalize colony-count measurements for one experiment."""
     exp_temps = EXP_TEMPS
     exp_filename = _get_exp_filename(exp_name)
@@ -159,14 +159,14 @@ def read_mibi(exp_name, dir_data=''):
         df_select = df_select.values[~np.isnan(df_select.values)]
 
         if fspl[-4] != '00':
-            d["-".join(["_".join([f1, fspl[2], f"{int(exp_temps[fspl[0][:3]]):02d}C", fspl[-4], fspl[-1][:-2]]), 'mibi'])] = [
+            d["-".join(["_".join([f1, fspl[2], f"{int(exp_temps[fspl[0][:3]]):02d}C", fspl[-4], fspl[-1][:-2]]), 'platecount'])] = [
                 np.mean(df_select),
                 np.std(df_select),
                 df_select
             ]
         else:
             for media in ['M1', 'M2']:
-                d["-".join(["_".join([f1, fspl[2], f"{int(exp_temps[fspl[0][:3]]):02d}C", fspl[-4], fspl[-1][:-2]]), 'mibi'])] = [
+                d["-".join(["_".join([f1, fspl[2], f"{int(exp_temps[fspl[0][:3]]):02d}C", fspl[-4], fspl[-1][:-2]]), 'platecount'])] = [
                     np.mean(df_select),
                     np.std(df_select),
                     df_select

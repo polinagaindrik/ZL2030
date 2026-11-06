@@ -24,7 +24,7 @@ if __name__ == "__main__":
 
     # Experiments present for each experimental method:
     exps_all   = [f'V{i:02d}' for i in range(1, 29)]
-    exps_mibi_all  = [f'V{i:02d}' for i in range(1, 22)] + [f'V{i:02d}' for i in range(23, 29)]
+    exps_platecount_all  = [f'V{i:02d}' for i in range(1, 22)] + [f'V{i:02d}' for i in range(23, 29)]
 
     n_media = 2
     n_cl = np.shape(dfs_calibr[1])[0]

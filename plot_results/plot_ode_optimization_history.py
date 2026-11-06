@@ -11,7 +11,7 @@ if __name__ == "__main__":
     path = 'out/'#main_ZL2030_withS/new_result2/calibration/'#'out/'
     path2 = 'out/main_ZL2030_withS/'#new_result2/calibration/'
     add_name = '_calibr'#'_exps1_9' #'_true'
-    df_names = [f'dataframe_mibi{add_name}.pkl', f'dataframe_maldi{add_name}.pkl', f'dataframe_ngs{add_name}.pkl']
+    df_names = [f'dataframe_platecount{add_name}.pkl', f'dataframe_maldi{add_name}.pkl', f'dataframe_ngs{add_name}.pkl']
     data = [pd.read_pickle(path2+df_name) for df_name in df_names]
     n_cl = np.shape(data[1])[0]
     n_media = 2

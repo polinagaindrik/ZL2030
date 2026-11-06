@@ -14,7 +14,7 @@ if __name__ == "__main__":
     #path2 = 'out/main_ZL2030_withS/woinhibition/'
     path2 = 'out/main_ZL2030_withS/'#new_result2/calibration/'#withinhib2_intersec/'
     add_name = '_calibr'#'_exps1_9' #'_true' #
-    df_names = [f'dataframe_mibi{add_name}.pkl', f'dataframe_maldi{add_name}.pkl', f'dataframe_ngs{add_name}.pkl']
+    df_names = [f'dataframe_platecount{add_name}.pkl', f'dataframe_maldi{add_name}.pkl', f'dataframe_ngs{add_name}.pkl']
     data = [pd.read_pickle(path2+df_name) for df_name in df_names]
     data = fm.dtf.filter_dataframe_regex('V.._', data)
     exps = sorted(list(set([s.split('_')[0] for s in data[0].columns])))
@@ -52,34 +52,34 @@ if __name__ == "__main__":
     }
 
     t_model = np.linspace(0., 17., 100)
-    x_count, obs_mibi_model, obs_maldi_model, obs_ngsi_model, temps_model = fm.mdl.calc_obs_model(data, param_ode, calibr_setup, t_model)
+    x_count, obs_platecount_model, obs_maldi_model, obs_ngsi_model, temps_model = fm.mdl.calc_obs_model(data, param_ode, calibr_setup, t_model)
     exps = sorted(list(set([s.split('_')[0] for s in data[0].columns])))
     #labels = ('day', r'log CFU mL$^{-1}$')
     labels = ('Tag',  r'log CFU mL$^{-1}$')
     for j, media in enumerate(['MRS', 'PC']):
         fm.plotting.plot_all([2., 10., 14.], labels, templ_meas=zl.plot_measurements_ZL2030_consttemp, df=data[0].filter(like=media), time_lim=[18., 10.3, 10.3],
-                 temps=temps_model, mtimes=t_model, mestim=obs_mibi_model[:,j, : ], dir=path2, add_name=f'MiBi_{media}_const_model')
+                 temps=temps_model, mtimes=t_model, mestim=obs_platecount_model[:,j, : ], dir=path2, add_name=f'platecount_{media}_const_model')
 
         
     '''
     # Plot model with all experiments together
-    exps_mibi = [f'V{i:02d}' for i in range(1, 22)] + [f'V{i:02d}' for i in range(23, 29)]
-    df_mibi = get_all_experiments_dataframe(read_mibi, exps_mibi, 'experiments/microbiology/')
-    df_mibi = drop_column(df_mibi, ['M2', 'VRBD'])
-    exps_full = sorted(list(set([s.split('_')[0] for s in df_mibi.columns])))
-    df_mibi_constT = df_mibi.filter(regex='V.._')
+    exps_platecount = [f'V{i:02d}' for i in range(1, 22)] + [f'V{i:02d}' for i in range(23, 29)]
+    df_platecount = get_all_experiments_dataframe(read_platecount, exps_platecount, 'experiments/microbiology/')
+    df_platecount = drop_column(df_platecount, ['M2', 'VRBD'])
+    exps_full = sorted(list(set([s.split('_')[0] for s in df_platecount.columns])))
+    df_platecount_constT = df_platecount.filter(regex='V.._')
     for j, media in enumerate(['MRS', 'PC']):
-        plot_all([2., 10., 14.], ('day', 'log bacterian count'), templ_meas=plot_measurements_ZL2030_consttemp, df=df_mibi_constT.filter(like=media), time_lim=[18., 11., 11],
-                 temps=temps_model, mtimes=t_model, mestim=obs_mibi_model[:,j, : ], dir=path2, add_name=f'MiBi_{media}_const_model1')
+        plot_all([2., 10., 14.], ('day', 'log bacterian count'), templ_meas=plot_measurements_ZL2030_consttemp, df=df_platecount_constT.filter(like=media), time_lim=[18., 11., 11],
+                 temps=temps_model, mtimes=t_model, mestim=obs_platecount_model[:,j, : ], dir=path2, add_name=f'platecount_{media}_const_model1')
     '''
 
     data = fm.dtf.filter_dataframe_regex('_02C', data)
     data = [fm.dtf.drop_column(df, ['V07', 'V08', 'V16', 'V18']) for df in data]
     exps0 = sorted(list(set([s.split('_')[0] for s in data[0].columns])))
     ind_exp0 = [exps.index(i) for i in list(exps0)]
-    obs_mibi_model0 = obs_mibi_model[ind_exp0]
+    obs_platecount_model0 = obs_platecount_model[ind_exp0]
     #ind_x0 = [i*n_cl+j for i in ind_exp0 for j in range (n_cl)]
     #x0_vals = param_ode[ind_x0]
     for j, media in enumerate(['MRS', 'PC']):
         fm.plotting.plot_all([2.], labels, templ_meas=zl.plot_measurements_ZL2030_consttemp, df=data[0].filter(like=media), time_lim=[18.],
-                 temps=temps_model, mtimes=t_model, mestim=obs_mibi_model[ind_exp0, j], dir=path2, add_name=f'MiBi_{media}_2Grad')
+                 temps=temps_model, mtimes=t_model, mestim=obs_platecount_model[ind_exp0, j], dir=path2, add_name=f'platecount_{media}_2Grad')

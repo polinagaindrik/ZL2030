@@ -25,8 +25,8 @@ if __name__ == "__main__":
     df_maldi = fm.dtf.drop_column(df_maldi, ['M2', 'VRBD'])
     df_maldi_red, bact_maldi = fm.dtf.preprocess_dataframe(df_maldi, cutoff=cutoff0)
 
-    df_mibi = zl.get_all_experiments_dataframe(zl.read_mibi, exps, 'experiments/microbiology/')
-    df_mibi = fm.dtf.drop_column(df_mibi, ['M2', 'VRBD'])
+    df_platecount = zl.get_all_experiments_dataframe(zl.read_platecount, exps, 'experiments/microbiology/')
+    df_platecount = fm.dtf.drop_column(df_platecount, ['M2', 'VRBD'])
 
 
     ## For now leave only bacteria that is present both in NGS and MALDI:
@@ -52,7 +52,7 @@ if __name__ == "__main__":
     # Estimate S matrix:
  
     #n_media = 2
-    #s_x = calc_Smatri(x_old[df_mibi, df_maldi, df_ngs], len(bact_maldi_ngs), n_media, path=path, workers=18)
+    #s_x = calc_Smatri(x_old[df_platecount, df_maldi, df_ngs], len(bact_maldi_ngs), n_media, path=path, workers=18)
     #json_dump(s_x.astype(list), 'S_matrix.json', dir=path)
     #print('S matrix: ', s_x)
 
@@ -69,7 +69,7 @@ if __name__ == "__main__":
     temps = sorted(list(set(exp_temps.values())))
 
     '''
-    P_matrices, x0_tran, df_ngs_new, df_maldi_new = calc_Pmatrix([df_mibi, df_maldi, df_ngs], transform_func,
+    P_matrices, x0_tran, df_ngs_new, df_maldi_new = calc_Pmatrix([df_platecount, df_maldi, df_ngs], transform_func,
                                                                  len(bact_maldi_ngs), n_cl_red, s_x, temps=temps,
                                                                  workers=workers, path=path)
     for temp, P, x0 in zip(temps, P_matrices, x0_tran):
@@ -93,7 +93,7 @@ if __name__ == "__main__":
     '''
     for p, temp in zip(P_matrices, temps):
         pinv = np.linalg.pinv(p)
-        df_ngs_temp, df_maldi_temp, df_mibi_temp = filter_dataframe(f'{int(temp):02d}C', [df_ngs, df_maldi, df_mibi])
+        df_ngs_temp, df_maldi_temp, df_platecount_temp = filter_dataframe(f'{int(temp):02d}C', [df_ngs, df_maldi, df_platecount])
         df_ngs_new_temp = transform_func(df_ngs_temp, np.array(p), pinv)
         df_maldi_new_temp = transform_maldi(transform_func, df_maldi, p, pinv, x0_tran, s_x)
         plot_proj_matrix_result(df_ngs_temp, df_ngs_new_temp, df_maldi_temp, df_maldi_new_temp,
@@ -130,10 +130,10 @@ if __name__ == "__main__":
 
     ## Parameter estimation for T dependent P:
     calibr_setup = calibr_setup
-    param_opt = fm.dim_red.calculate_model_prob_withP(fm.dim_red.log_likelihood_withP_diffT, [df_mibi, df_maldi, df_ngs], calibr_setup)
+    param_opt = fm.dim_red.calculate_model_prob_withP(fm.dim_red.log_likelihood_withP_diffT, [df_platecount, df_maldi, df_ngs], calibr_setup)
     fm.output.json_dump({'param_ode': param_opt.astype(list)}, 'Result_temp_separate.json', dir=path)
     param_opt = fm.output.read_from_json('Result_temp_separate.json', dir=path)['param_ode']
-    fm.plotting.plot_optimization_result_withP_diffT([df_mibi, df_maldi, df_ngs], param_opt, calibr_setup, s_x,
+    fm.plotting.plot_optimization_result_withP_diffT([df_platecount, df_maldi, df_ngs], param_opt, calibr_setup, s_x,
                                          np.linspace(0, 17, 100), path=path)
-    fm.plotting.plot_reduced_model([df_mibi, df_maldi, df_ngs], param_opt, calibr_setup, s_x,
+    fm.plotting.plot_reduced_model([df_platecount, df_maldi, df_ngs], param_opt, calibr_setup, s_x,
                        np.linspace(0, 17, 100), path=path)

@@ -13,10 +13,10 @@ if __name__ == "__main__":
     ntr = 1
     n_media = 2
 
-    df_mibi = fm.output.read_from_json('dataframe_mibi.json', dir=path)
+    df_platecount = fm.output.read_from_json('dataframe_platecount.json', dir=path)
     df_maldi = fm.output.read_from_json('dataframe_maldi.json', dir=path)
     df_ngs = fm.output.read_from_json('dataframe_ngs.json', dir=path)
-    exps = sorted(list(set([s.split('_')[0] for s in df_mibi.columns])))
+    exps = sorted(list(set([s.split('_')[0] for s in df_platecount.columns])))
     df_maldi, df_ngs, T_x = fm.dtf.make_df_maldi_ngs_compatible(df_maldi, df_ngs, cutoff=0.001)
 
     s_x = fm.output.read_from_json(path+'S_matrix.json')
@@ -67,7 +67,7 @@ if __name__ == "__main__":
 
     # Parameter estimation: diff P for diff T:
     param_opt2 = fm.output.read_from_json('Result_temp_separate.json', dir=path)['param_ode']
-    fm.plotting.plot_optimization_result_withP_diffT([df_mibi, df_maldi, df_ngs], param_opt2, calibr_setup, s_x,
+    fm.plotting.plot_optimization_result_withP_diffT([df_platecount, df_maldi, df_ngs], param_opt2, calibr_setup, s_x,
                                          np.linspace(0, 17, 100), path=path) 
-    fm.plotting.plot_reduced_model([df_mibi, df_maldi, df_ngs], param_opt2, calibr_setup, s_x,
+    fm.plotting.plot_reduced_model([df_platecount, df_maldi, df_ngs], param_opt2, calibr_setup, s_x,
                        np.linspace(0, 17, 100), path=path)

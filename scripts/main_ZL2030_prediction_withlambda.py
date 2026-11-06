@@ -15,7 +15,7 @@ if __name__ == "__main__":
 
     # Load calibration result:
     add_name_calibr = '_calibr'
-    df_names = [f'dataframe_mibi{add_name_calibr}.pkl', f'dataframe_maldi{add_name_calibr}.pkl', f'dataframe_ngs{add_name_calibr}.pkl']
+    df_names = [f'dataframe_platecount{add_name_calibr}.pkl', f'dataframe_maldi{add_name_calibr}.pkl', f'dataframe_ngs{add_name_calibr}.pkl']
     dfs_calibr = [pd.read_pickle(path+'calibration/'+df_name) for df_name in df_names]
     dfs_calibr = fm.dtf.filter_dataframe_regex('V.._', dfs_calibr)
     exps_calibr = sorted(list(set([s.split('_')[0] for s in dfs_calibr[0].columns])))
@@ -66,7 +66,7 @@ if __name__ == "__main__":
 
     # Experiments with industry probes  (SLH)
     exps_predict = ['V15', 'V21']#, V22', 'V23', 'V24', 'V25', 'V26', 'V27', 'V28']
-    # 'V22' in different format #TODO  implement reading V22 for mibi
+    # 'V22' in different format #TODO  implement reading V22 for platecount
     # 'V23', 'V28' no MALDI
     # 'V24'-'V28' no NGS
     add_name_predict_slh = '_prediction' + '_stor'

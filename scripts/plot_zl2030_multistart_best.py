@@ -4,7 +4,7 @@ Plot the best fit so far of main_zl2030_multistart.py, also while it is running 
 
 Output: out/multistart/best_so_far/
     overview_plate_counts_best_vs_earlier.png   plate counts of all experiments: data, best fit, earlier parameter set
-    MiBi_<medium>_const_model.png               plate counts of all experiments per temperature, best fit (as plot_model_results.py)
+    platecount_<medium>_const_model.png               plate counts of all experiments per temperature, best fit (as plot_model_results.py)
     best/      per-experiment figures of the best fit (plate counts, MALDI, NGS, cells)
     earlier/   the same for the earlier parameter set
 Run from anywhere:
@@ -62,29 +62,29 @@ def plate_counts(param, setup, exp_index, t):
     C = fm.mdl.model_ODE_solution(setup['model'], t, ode, C0, const)
     n_C = fm.mdl.get_bacterial_count(C, n_cl, 2)
     n_C0 = fm.mdl.get_bacterial_count(C0.reshape(len(C0), 1), n_cl, 2)
-    return fm.mdl.observable_MiBi(t, n_C, s_x, n_C0, const, t)[1]
+    return fm.mdl.observable_platecount(t, n_C, s_x, n_C0, const, t)[1]
 
 
 def overview(setup, best, earlier, title, fname):
     """Small multiples of the plate counts, sorted by temperature."""
-    days, (mibi, _, _) = setup['data_array']
+    days, (platecount, _, _) = setup['data_array']
     days = np.asarray(days, dtype=float)
     exps = setup['exps']
     order = sorted(range(len(exps)), key=lambda i: (setup['exp_temps'][exps[i]], exps[i]))
     fig, axes = plt.subplots(3, 5, figsize=(13, 7.6), sharex=True, sharey=True)
     sq = {'best': [], 'earlier': []}
     for ax, i in zip(axes.ravel(), order):
-        d = days[np.any(np.isfinite(mibi[i]), axis=0)]
+        d = days[np.any(np.isfinite(platecount[i]), axis=0)]
         t = np.linspace(0., d.max() + 0.5, 150)
         m_best, m_earlier = plate_counts(best, setup, i, t), plate_counts(earlier, setup, i, t)
         for j, med in enumerate(setup['media']):
             col = MEDIUM_COLOR[med]
             ax.plot(t, np.log10(np.maximum(m_earlier[j], 1.)), color=col, lw=1.5, ls=(0, (3, 2)), alpha=.75)
             ax.plot(t, np.log10(np.maximum(m_best[j], 1.)), color=col, lw=2)
-            ok = np.isfinite(mibi[i, j]) & (mibi[i, j] > 0)
-            ax.plot(days[ok], np.log10(mibi[i, j][ok]), 'o', ms=5, mfc=col, mec='white', mew=.8, zorder=3)
+            ok = np.isfinite(platecount[i, j]) & (platecount[i, j] > 0)
+            ax.plot(days[ok], np.log10(platecount[i, j][ok]), 'o', ms=5, mfc=col, mec='white', mew=.8, zorder=3)
             for key, m in (('best', m_best), ('earlier', m_earlier)):
-                sq[key].append(np.interp(days[ok], t, np.log10(np.maximum(m[j], 1.))) - np.log10(mibi[i, j][ok]))
+                sq[key].append(np.interp(days[ok], t, np.log10(np.maximum(m[j], 1.))) - np.log10(platecount[i, j][ok]))
         ax.set_title(f"{exps[i]}, {setup['exp_temps'][exps[i]]:g} °C", fontsize=10, color=TEXT, loc='left')
         ax.grid(color=GRID, lw=.7)
         ax.set_axisbelow(True)
@@ -109,7 +109,7 @@ def overview(setup, best, earlier, title, fname):
     return rmse
 
 
-def plot_mibi_together(param, setup, dfs, out):
+def plot_platecount_together(param, setup, dfs, out):
     """Plate counts of all experiments, one panel per temperature and one figure per medium, as in
     plot_results/plot_model_results.py."""
     def measurements(ax0, temp, df, clrs=None, media=''):
@@ -119,11 +119,11 @@ def plot_mibi_together(param, setup, dfs, out):
     n_cl, n_media = setup['n_cl'], setup['n_media']
     s_x = param[-n_cl*n_media:].reshape(n_media, n_cl)
     t_model = np.linspace(0., 17., 100)
-    _, obs_mibi, _, _, temps = fm.mdl.calc_obs_model(dfs, param[:-n_cl*n_media], dict(setup, s_x=s_x), t_model)
+    _, obs_platecount, _, _, temps = fm.mdl.calc_obs_model(dfs, param[:-n_cl*n_media], dict(setup, s_x=s_x), t_model)
     for j, med in enumerate(setup['media']):
         fm.plotting.plot_all([2., 10., 14.], ('Tag', r'log CFU mL$^{-1}$'), templ_meas=measurements,
                              df=dfs[0].filter(like=med), clrs=plotting_templates.exp_clrs, time_lim=[18., 10.3, 10.3], temps=temps, mtimes=t_model,
-                             mestim=obs_mibi[:, j, :], dir=out, add_name=f'MiBi_{med}_const_model')
+                             mestim=obs_platecount[:, j, :], dir=out, add_name=f'platecount_{med}_const_model')
 
 
 if __name__ == '__main__':
@@ -152,7 +152,7 @@ if __name__ == '__main__':
                     'vs. earlier parameter set', out + 'overview_plate_counts_best_vs_earlier.png')
     print(f'Best so far: start {start}, cost {cost:.2f}; plate count log10 RMSE {rmse}')
 
-    plot_mibi_together(param, setup, dfs, out)
+    plot_platecount_together(param, setup, dfs, out)
 
     colors = dict(zip(bact, fm.plotting.colors_ngs[1:]))
     for sub, p in (('best/', param), ('earlier/', earlier)):

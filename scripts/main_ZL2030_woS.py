@@ -33,7 +33,7 @@ if __name__ == "__main__":
     s_x = fm.pest.calc_Smatrix(dfs_calibr, T_x, s_x_predefined, path=path_new, workers=workers, add_name=add_name)
     print('S calc time: ', (time.time()-start_S)/60., 'min')
     s_x = fm.output.read_from_json(path_new+f'S_matrix{add_name}.json')['s_x']
-    #plot_filteringS2([df_mibi, df_maldi, df_ngs], np.array(s_x), T_x, exps, path=path_new)
+    #plot_filteringS2([df_platecount, df_maldi, df_ngs], np.array(s_x), T_x, exps, path=path_new)
 
     # Fit model to df:
     calibr_presetup={

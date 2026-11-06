@@ -11,7 +11,7 @@ if __name__ == "__main__":
     plt.rcParams['figure.dpi'] = 500
     path = 'out/main_ZL2030_withS/new_result/'
     add_name_calibr = '_calibr'
-    df_names = [f'dataframe_mibi{add_name_calibr}.pkl', f'dataframe_maldi{add_name_calibr}.pkl', f'dataframe_ngs{add_name_calibr}.pkl']
+    df_names = [f'dataframe_platecount{add_name_calibr}.pkl', f'dataframe_maldi{add_name_calibr}.pkl', f'dataframe_ngs{add_name_calibr}.pkl']
     workers = 16
 
     dfs_calibr = [pd.read_pickle(path+df_name) for df_name in df_names]
