@@ -22,7 +22,8 @@ Run from anywhere:
     python scripts/main_zl2030_multistart.py
 To stop early and keep the best points: touch <output>/optimization_history_multistart.stop
 
-Second batch, more independent starts with the inhibition terms sampled on a log scale (no start from the earlier set):
+Second kind of run, longer: start 0 continues the best point of the first run, the other starts are independent, with
+the inhibition terms sampled on a log scale; at most 20 h per start:
     python scripts/main_zl2030_multistart.py --log-k
 The in-silico bounds of k_ij start at 0, so the Latin hypercube samples them linearly (median about 10, against 1.4 in
 the earlier set). Here they are sampled in K_START_RANGE instead. Output: out/multistart_logk/
@@ -54,12 +55,12 @@ import pandas as pd
 N_STARTS = 95                 # Latin hypercube starts; the earlier parameter set comes on top
 N_JOBS = os.cpu_count()       # all cores, one start per core at a time
 MAX_ITER = 500                # residual evaluations per least-squares solve
-MAX_MINUTES = 240             # limit per start
 SEED = 0
 S_MAX_PENALTY = 100           # penalty so that the largest media coefficient S is 1
 NOISE_MODEL = 'relative'
 LOG_K = '--log-k' in sys.argv
-N_STARTS_LOG_K = 48           # --log-k: Latin hypercube starts
+N_STARTS_LOG_K = 48           # --log-k: all starts: the best point of the first run, then Latin hypercube
+MAX_MINUTES = 1200 if LOG_K else 240  # limit per start; 48 starts on 24 cores: at most about 40 h with --log-k
 K_START_RANGE = (0.02, 20.)   # --log-k: k_ij of the start points, log10 uniform; the fit bounds stay (0, 20)
 LAMBDA_EXP_MAX = 3.           # upper bound of lambda_exp
 NEAR_BEST = 3.84              # starts within this cost of the best count as "near best" (chi2, 1 dof, 95 %)
@@ -73,6 +74,7 @@ N_MEDIA = 2
 # the data readers use paths relative to the root of this repository (experiments/)
 OUT = os.path.join(ROOT, 'out', 'multistart_logk' if LOG_K else 'multistart', '')
 EARLIER = os.path.join(ROOT, 'out', 'exp_model', 'calibration', 'Result_calibration_zl2030_copy.json')
+FIRST_RUN = os.path.join(ROOT, 'out', 'multistart', 'Result_calibration_zl2030_multistart.json')
 
 
 def best_of_start(fname):
@@ -81,6 +83,12 @@ def best_of_start(fname):
     h = h.loc[:, ~h.columns.str.startswith('Unnamed')]
     i = h['cost'].idxmin()
     return float(h.loc[i, 'cost']), h.loc[i, [c for c in h.columns if re.fullmatch(r'p\d+', c)]].to_numpy(dtype=float)
+
+
+def first_run_best(lo, hi):
+    """Best point of the first run, to continue it: [full parameter vector], within the bounds."""
+    return [np.clip(np.array(fm.output.read_from_json(os.path.basename(FIRST_RUN), dir=os.path.dirname(FIRST_RUN) + '/')['param_ode'],
+                             dtype=float), lo, hi)]
 
 
 def N_CL_X0(setup):
@@ -147,7 +155,8 @@ if __name__ == '__main__':
     history = OUT + 'optimization_history_multistart.csv'
     best, cost_best = fm.pest.multistart_optimization(
         fm.pest.cost_withS, setup, n_starts=0 if LOG_K else N_STARTS, seed=SEED,
-        extra_starts=log_k_starts(setup['param_bnds'], N_STARTS_LOG_K, N_CL_X0(setup), n_cl) if LOG_K else [earlier_clipped],
+        extra_starts=(first_run_best(lo, hi) + log_k_starts(setup['param_bnds'], N_STARTS_LOG_K - 1, N_CL_X0(setup), n_cl)
+                      if LOG_K else [earlier_clipped]),
         method='least_squares',
         maxiter=MAX_ITER, n_jobs=N_JOBS, history_file=history, backend='jax', max_minutes=MAX_MINUTES)
     print(f'{(time.time() - start) / 60.:.1f} min (multistart), best cost = {cost_best:.6f}', flush=True)
@@ -167,7 +176,7 @@ if __name__ == '__main__':
         except (ValueError, KeyError, pd.errors.EmptyDataError) as err:
             print(f'Start {r}: no usable history ({err})')
             continue
-        rows.append({'start': r, 'kind': 'earlier set' if r == 0 and not LOG_K else 'latin hypercube', 'cost': c,
+        rows.append({'start': r, 'kind': ('continued first run' if LOG_K else 'earlier set') if r == 0 else 'latin hypercube', 'cost': c,
                      'delta_to_best': c - cost_best})
         params[r] = p
     starts = pd.DataFrame(rows).sort_values('cost')

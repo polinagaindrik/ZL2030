@@ -50,7 +50,7 @@ In a script, `import zl2030 as zl` gives the functions of this repository, for e
 
 ## Multistart fit
 
-`scripts/main_zl2030_multistart.py` fits the 12-species model and bounds of the in-silico case to the data, to compare with the earlier parameter set. It uses all cores and can take many hours, so run it as a background service:
+`scripts/main_zl2030_multistart.py` fits the 12-species model and bounds of the in-silico case to the data, to compare with the earlier parameter set. It uses all cores and can take up to two days, so run it as a background service:
 
 ```sh
 systemd-run --user --unit=zl2030-multistart --remain-after-exit --working-directory=$PWD \
@@ -58,7 +58,7 @@ systemd-run --user --unit=zl2030-multistart --remain-after-exit --working-direct
     --setenv=PYTHONUNBUFFERED=1 $PWD/.venv/bin/python scripts/main_zl2030_multistart.py --log-k
 ```
 
-With `--log-k`, the interaction terms `k_ij` of the start points are sampled on a log scale, results in `out/multistart_logk/`. Without it, the Latin hypercube samples them linearly and start 0 is the earlier parameter set, results in `out/multistart/`. A new run overwrites the histories in its folder.
+With `--log-k`, results go to `out/multistart_logk/`: start 0 continues the best point of the first run (`out/multistart/`), and 47 independent starts have the interaction terms `k_ij` sampled on a log scale. Each start has at most 20 h, so a run takes at most about 40 h on 24 cores. Without it, results go to `out/multistart/`: the Latin hypercube samples `k_ij` linearly, start 0 is the earlier parameter set, and each start has at most 4 h. A new run overwrites the histories in its folder.
 
 While it runs or afterwards, add `--log-k` for the second kind of run:
 

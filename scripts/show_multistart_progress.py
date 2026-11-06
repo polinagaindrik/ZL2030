@@ -30,4 +30,4 @@ print(f'{len(rows)} of {N_STARTS} starts have begun; {len(rows) - idle} wrote wi
 print(f'cost of the earlier parameter set: {EARLIER_COST}')
 print(f'{"start":>5} {"best cost":>12} {"to earlier":>11} {"points":>7} {"first cost":>12} {"last write":>10}')
 for c, r, n, c0, age in rows[:25]:
-    print(f'{r:5d} {c:12.2f} {c - EARLIER_COST:11.2f} {n:7d} {c0:12.2f} {age:7.1f}min' + ('  <- earlier set' if r == 0 and not LOG_K else ''))
+    print(f'{r:5d} {c:12.2f} {c - EARLIER_COST:11.2f} {n:7d} {c0:12.2f} {age:7.1f}min' + ('  <- continued first run' if LOG_K else '  <- earlier set') * (r == 0))
