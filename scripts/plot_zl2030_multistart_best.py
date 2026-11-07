@@ -8,7 +8,7 @@ Output: out/multistart/best_so_far/
     best/      per-experiment figures of the best fit (plate counts, MALDI, NGS, cells)
     earlier/   the same for the earlier parameter set
 Run from anywhere:
-    python scripts/plot_zl2030_multistart_best.py
+    python scripts/plot_zl2030_multistart_best.py [--log-k] [--run out/refine_corrected]
 """
 import glob
 import os
@@ -21,6 +21,9 @@ import fusion_model as fm
 import zl2030 as zl
 from fusion_model.plotting import plotting_templates
 import main_zl2030_multistart as ms
+
+# --run <folder>: another run folder, e.g. out/refine_corrected (default: the folder of main_zl2030_multistart.py)
+RUN = (os.path.join(os.path.abspath(sys.argv[sys.argv.index('--run') + 1]), '') if '--run' in sys.argv else ms.OUT)
 
 import matplotlib
 matplotlib.use('Agg')
@@ -35,7 +38,7 @@ TEXT, MUTED, GRID = '#0b0b0b', '#52514e', '#e4e3df'
 def best_so_far():
     """(cost, start, full parameter vector) of the lowest cost in any start's history."""
     best = (np.inf, None, None)
-    for f in glob.glob(ms.OUT + 'optimization_history_multistart_start*.csv'):
+    for f in glob.glob(RUN + 'optimization_history_*_start*.csv'):
         with open(f) as fh:
             next(fh, None)
             for line in fh:
@@ -128,7 +131,7 @@ def plot_platecount_together(param, setup, dfs, out):
 
 if __name__ == '__main__':
     os.chdir(ms.ROOT)
-    out = ms.OUT + 'best_so_far/'
+    out = RUN + 'best_so_far/'
     for sub in ('best/', 'earlier/'):
         os.makedirs(out + sub, exist_ok=True)
     cost, start, param = best_so_far()

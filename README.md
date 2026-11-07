@@ -68,6 +68,10 @@ python scripts/plot_zl2030_multistart_best.py   # figures of the best fit so far
 touch out/multistart/optimization_history_multistart.stop   # stop, keep the best points and write the results
 ```
 
+## Refinement
+
+`scripts/refine_zl2030.py` refines the best points of a multistart run on the data as read now, for example after a change of the data reading. By default it takes the 12 best starts of `out/multistart_logk/`, gives each at most 6 h and writes to `out/refine_corrected/`. Add `--run out/refine_corrected` to the progress and plot scripts to see it.
+
 ## Contents
 
 | Path | Content |
@@ -79,7 +83,8 @@ touch out/multistart/optimization_history_multistart.stop   # stop, keep the bes
 | `scripts/main_ZL2030_withS.py`, `scripts/main_ZL2030_woS.py` | Calibration, with and without estimating the media matrix `S` |
 | `scripts/main_ZL2030_prediction*.py` | Prediction of new experiments |
 | `scripts/main_zl2030_multistart.py` | Multistart fit, see above |
-| `scripts/show_multistart_progress.py`, `scripts/plot_zl2030_multistart_best.py` | Progress and figures of the multistart fit |
+| `scripts/refine_zl2030.py` | Local refinement of the best points of a run, see above |
+| `scripts/show_multistart_progress.py`, `scripts/plot_zl2030_multistart_best.py` | Progress and figures of a run (option `--run <folder>`) |
 | `scripts/create_exp_temps_dict.py` | Creates `inputs_fusionmodel/exp_temps.json` |
 | `plot_results/` | Further figures of data and results |
 | `old/` | Earlier scripts, not maintained |
