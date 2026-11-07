@@ -139,7 +139,9 @@ def read_platecount(exp_name, dir_data=''):
         df0 = pd.read_excel(dir_data + filename, keep_default_na=True) # , on_bad_lines='skip'
     df0 = df0.dropna(axis=1, how='all')[-np.isnan(df0.Average)]
 
-    d = {'Properties': ['Average', 'Standard deviation', 'Replicas']}
+    # Several rows can belong to one data point: on day 0, the subsamples CC01, CC02, ... of the same meat. The value
+    # is the mean of their means (each row: mean of its replicate plates), the standard deviation that of all plates.
+    rows = {}
     for f in df0[df0.columns[0]].values:
         fspl = f.split('_')
         if len(fspl) == 8:
@@ -158,19 +160,13 @@ def read_platecount(exp_name, dir_data=''):
         df_select = df0[df0[df0.columns[0]] == f].iloc[:, 2:]
         df_select = df_select.values[~np.isnan(df_select.values)]
 
-        if fspl[-4] != '00':
-            d["-".join(["_".join([f1, fspl[2], f"{int(exp_temps[fspl[0][:3]]):02d}C", fspl[-4], fspl[-1][:-2]]), 'platecount'])] = [
-                np.mean(df_select),
-                np.std(df_select),
-                df_select
-            ]
-        else:
-            for media in ['M1', 'M2']:
-                d["-".join(["_".join([f1, fspl[2], f"{int(exp_temps[fspl[0][:3]]):02d}C", fspl[-4], fspl[-1][:-2]]), 'platecount'])] = [
-                    np.mean(df_select),
-                    np.std(df_select),
-                    df_select
-                ]
+        name = "-".join(["_".join([f1, fspl[2], f"{int(exp_temps[fspl[0][:3]]):02d}C", fspl[-4], fspl[-1][:-2]]), 'platecount'])
+        rows.setdefault(name, []).append(df_select)
+
+    d = {'Properties': ['Average', 'Standard deviation', 'Replicas']}
+    for name, plates in rows.items():
+        all_plates = np.concatenate(plates)
+        d[name] = [np.mean([np.mean(x) for x in plates]), np.std(all_plates), all_plates]
     df = _correct_df_for_tempinterruption(pd.DataFrame(data=d))
     return df.groupby('Properties').sum()
 
