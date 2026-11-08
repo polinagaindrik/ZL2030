@@ -33,6 +33,10 @@ import numpy as np
 
 MEDIUM_COLOR = {'PC': '#2a78d6', 'MRS': '#eb6834'}
 TEXT, MUTED, GRID = '#0b0b0b', '#52514e', '#e4e3df'
+TIME_LABEL = r'Time, $t$ [day]'   # as in the Pool_Model case study, with days instead of hours
+COUNT_LABEL = r'log CFU mL$^{-1}$'
+PANEL_WIDTH = 7.5   # inches per temperature panel (height 6): wide figures for two stacked on a 16:9 slide
+PANEL_GAP = 0.04   # gap between the panels, fraction of a panel width (the y axis is shared)
 
 
 def best_so_far():
@@ -96,9 +100,9 @@ def overview(setup, best, earlier, title, fname):
         ax.tick_params(colors=MUTED, labelsize=9, length=0)
     rmse = {k: float(np.sqrt(np.mean(np.concatenate(v)**2))) for k, v in sq.items()}
     for ax in axes[-1]:
-        ax.set_xlabel('Day', color=MUTED, fontsize=10)
+        ax.set_xlabel(TIME_LABEL, color=MUTED, fontsize=10)
     for ax in axes[:, 0]:
-        ax.set_ylabel('log10 count', color=MUTED, fontsize=10)
+        ax.set_ylabel(COUNT_LABEL, color=MUTED, fontsize=10)
     handles = [mlines.Line2D([], [], color=MEDIUM_COLOR[m], marker='o', mec='white', ls='', ms=6, label=f'{m}, data')
                for m in ('PC', 'MRS')]
     handles += [mlines.Line2D([], [], color=MUTED, lw=2, label=f"Best fit so far (log10 RMSE {rmse['best']:.2f})"),
@@ -124,9 +128,10 @@ def plot_platecount_together(param, setup, dfs, out):
     t_model = np.linspace(0., 17., 100)
     _, obs_platecount, _, _, temps = fm.mdl.calc_obs_model(dfs, param[:-n_cl*n_media], dict(setup, s_x=s_x), t_model)
     for j, med in enumerate(setup['media']):
-        fm.plotting.plot_all([2., 10., 14.], ('Tag', r'log CFU mL$^{-1}$'), templ_meas=measurements,
-                             df=dfs[0].filter(like=med), clrs=plotting_templates.exp_clrs, time_lim=[18., 10.3, 10.3], temps=temps, mtimes=t_model,
-                             mestim=obs_platecount[:, j, :], dir=out, add_name=f'platecount_{med}_const_model')
+        fm.plotting.plot_all([2., 10., 14.], (TIME_LABEL, COUNT_LABEL), templ_meas=measurements,
+                             df=dfs[0].filter(like=med), clrs=plotting_templates.exp_clrs, time_lim=[17.4, 10.3, 10.3], temps=temps, mtimes=t_model,
+                             mestim=obs_platecount[:, j, :], dir=out, add_name=f'platecount_{med}_const_model',
+                             panel_width=PANEL_WIDTH, wspace=PANEL_GAP)
 
 
 if __name__ == '__main__':
@@ -161,5 +166,6 @@ if __name__ == '__main__':
     for sub, p in (('best/', param), ('earlier/', earlier)):
         s_x = p[-n_cl*ms.N_MEDIA:].reshape(ms.N_MEDIA, n_cl)
         fm.plotting.plot_optimization_result(p[:-n_cl*ms.N_MEDIA], dict(setup, s_x=s_x), np.linspace(0, 17, 100),
-                                             path=out + sub, clrs=colors, add_name='_zl2030')
+                                             path=out + sub, clrs=colors, add_name='_zl2030', time_label=TIME_LABEL,
+                                             legend_outside=True)
     print('Saved to', out)

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MaxNLocator
 import numpy as np
 from fusion_model.plotting import plotting_templates as plt_templ
 from fusion_model.tools.dataframe_functions import merge_dfs, get_values_from_dataframe_biochem, filter_dataframe
@@ -123,6 +124,23 @@ def plot_measurements_ZL2030_Tunterbrech(df, exp_plots, mtimes=[], mestim=[], di
     plt.close(fig)
 
 
+def _tight_ylim(ax0, pad=0.03):
+    """y-limits of the visible curves and points, over all panels of the figure (shared y axis): autoscaling
+    also counts the model curves beyond the x-limits."""
+    x0, x1 = ax0.get_xlim()
+    ys = [np.asarray(l.get_ydata(), dtype=float)[(np.asarray(l.get_xdata(), dtype=float) >= x0) & (np.asarray(l.get_xdata(), dtype=float) <= x1)]
+          for l in ax0.get_lines() if len(l.get_xdata()) > 0]
+    ys = np.concatenate([y[np.isfinite(y)] for y in ys] + [np.array([])])
+    if len(ys) == 0:
+        return
+    lo, hi = np.min(ys), np.max(ys)
+    prev = getattr(ax0.figure, '_visible_yrange', None)
+    if prev is not None:
+        lo, hi = min(lo, prev[0]), max(hi, prev[1])
+    ax0.figure._visible_yrange = (lo, hi)
+    ax0.set_ylim(lo - pad*(hi - lo), hi + pad*(hi - lo))
+
+
 def plot_measurements_ZL2030_consttemp(ax0, temp, df, c=['b'], lab='',  media=''):
     """Draw constant-temperature ZL2030 observations for a selected medium."""
     scatter_marker = ['^', 'o', 'D', "s", "X", ".", "*", "P", "d", "x", '^', 'o', 'D', "s",]
@@ -133,6 +151,8 @@ def plot_measurements_ZL2030_consttemp(ax0, temp, df, c=['b'], lab='',  media=''
     for i, exp in enumerate(exps):
         if exp != 'V10':
             plt_templ.plot_measurement(ax0, df0.filter(like=exp+'_'), exp, plt_templ.exp_clrs[exp], lst[i], scatter_marker[i])
+    ax0.xaxis.set_major_locator(MaxNLocator(nbins=6, integer=True, steps=[1, 2, 5, 10]))  # whole days, also on wide panels
+    _tight_ylim(ax0)
     #ax0.set_title(f'Temperatur {round(temp)} Grad', fontsize=13)
     if media == 'PC':
         y0_loc = 3.5
