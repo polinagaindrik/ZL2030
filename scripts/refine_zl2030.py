@@ -13,7 +13,9 @@ Output (default out/refine_corrected/):
     optimization_history_refine_start*.csv  history of each start
 Run from the root of this repository:
     python scripts/refine_zl2030.py [--source out/multistart_logk] [--out out/refine_corrected] [--n-starts 12]
-                                    [--max-minutes 360]
+                                    [--max-minutes 360] [--counts]
+--counts: MALDI and NGS with count likelihoods (multinomial / Dirichlet-multinomial with the colonies of each plate and
+the reads of each sample), as the in-silico error model. Its costs cannot be compared with those of relative noise.
 Figures and progress: add --run out/refine_corrected to plot_zl2030_multistart_best.py / show_multistart_progress.py.
 """
 import argparse
@@ -40,8 +42,13 @@ import numpy as np
 import pandas as pd
 
 
-def calibration_setup(out):
-    """Setup of main_zl2030_multistart.py on the data as read now."""
+NGS_CONCENTRATION = 2000.  # --counts: Dirichlet-multinomial concentration A of NGS, as the in-silico baseline (from ZL2030 replicate pairs)
+
+
+def calibration_setup(out, counts=False):
+    """Setup of main_zl2030_multistart.py on the data as read now. counts=True: MALDI multinomial and NGS
+    Dirichlet-multinomial with the colonies of each plate and the reads of each sample (as the in-silico error model),
+    plate counts with relative noise; otherwise all three with relative noise."""
     dfs, bact, T_x, s_x_predefined = zl.prepare_ZL2030_data(ms.EXPS, ms.EXPS_MALDI, ms.EXPS_NGS, cutoff=ms.CUTOFF,
                                                             cutoff_prop=ms.CUTOFF_PROP, path=out, add_name='_zl2030')
     bact = list(dfs[1].index)
@@ -52,9 +59,14 @@ def calibration_setup(out):
          'media': media},
         inhib=True, s_x_predefined=s_x_predefined, s_x=None, lambda_exp_max=ms.LAMBDA_EXP_MAX)
     setup['data_array'] = fm.dtf.extract_observables_from_df(dfs)
-    setup.update(s_max_penalty=ms.S_MAX_PENALTY, noise_model=ms.NOISE_MODEL, maldi_n=None, ngs_dm=None,
+    maldi_n, ngs_dm = None, None
+    if counts:
+        maldi_n, n_ngs = zl.counts_per_composition(dfs, zl.sample_totals(ms.EXPS_MALDI, ms.EXPS_NGS))
+        ngs_dm = (n_ngs, NGS_CONCENTRATION)
+    setup.update(s_max_penalty=ms.S_MAX_PENALTY, noise_model=ms.NOISE_MODEL, maldi_n=maldi_n, ngs_dm=ngs_dm,
                  jax_options={'structured_jacobian': True})
-    setup['aggregation_func'] = pl.make_gaussian_neg2loglik(setup['data_array'], ms.NOISE_MODEL)
+    setup['aggregation_func'] = pl.make_gaussian_neg2loglik(setup['data_array'], ms.NOISE_MODEL, maldi_n=maldi_n,
+                                                            ngs_dm=ngs_dm)
     return setup, bact, media, T_x
 
 
@@ -79,13 +91,14 @@ if __name__ == '__main__':
     ap.add_argument('--n-starts', type=int, default=12)
     ap.add_argument('--max-minutes', type=float, default=360)
     ap.add_argument('--n-jobs', type=int, default=None)
+    ap.add_argument('--counts', action='store_true', help='MALDI and NGS with count likelihoods, see calibration_setup')
     args = ap.parse_args()
     os.chdir(ROOT)
     out = os.path.join(args.out, '')
     os.makedirs(out, exist_ok=True)
     start = time.time()
 
-    setup, bact, media, T_x = calibration_setup(out)
+    setup, bact, media, T_x = calibration_setup(out, counts=args.counts)
     lo, hi = np.array(setup['param_bnds'], dtype=float).T
     sources = best_starts(args.source, args.n_starts)
     points = [np.clip(p, lo, hi) for _, _, p in sources]
@@ -103,7 +116,8 @@ if __name__ == '__main__':
     n_cl = setup['n_cl']
     fm.output.json_dump({'param_ode': best.astype(list), 's_x': best[-n_cl * ms.N_MEDIA:].reshape((ms.N_MEDIA, n_cl)),
                          'T_x': T_x, 'cost': cost_best, 'objective': 'neg2logL', 'noise_model': ms.NOISE_MODEL,
-                         'backend': 'jax', 'maldi_n': None, 'ngs_dm': None, 's_max_penalty': ms.S_MAX_PENALTY,
+                         'backend': 'jax', 'counts': args.counts,
+                         'ngs_concentration': NGS_CONCENTRATION if args.counts else None, 's_max_penalty': ms.S_MAX_PENALTY,
                          'bact': bact, 'media': media, 'source': args.source,
                          'source_starts': [int(r) for r, _, _ in sources]},
                         'Result_calibration_zl2030_refine.json', dir=out)

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+from functools import partial
+
 import numpy as np
 import pandas as pd
 from pybis import Openbis
@@ -25,6 +27,30 @@ def get_bacteria_for_model(exps_maldi, exps_ngs, path_data, cutoff=0., cutoff_pr
     df_maldi, bact_maldi = dtf.preprocess_dataframe(df_maldi, cutoff=cutoff, cutoff_prop=cutoff_prop, calc_prop=False)
     bact_all = dtf.intersection(bact_ngs.values, bact_maldi.values)
     return bact_all, df_maldi.T[bact_all].T, df_ngs.T[bact_all].T
+
+
+def sample_totals(exps_maldi, exps_ngs, path_data='experiments/'):
+    """Colonies identified on each MALDI plate and reads of each NGS sample, as Series indexed like the columns of the
+    MALDI and NGS data frames of prepare_ZL2030_data (same reading and the same filters, before proportions)."""
+    df_maldi = get_all_experiments_dataframe(partial(read_maldi, counts=True), exps_maldi, path_data+'MALDI/')
+    df_maldi = dtf.drop_column(df_maldi, ['M2', 'VRBD'])
+    df_ngs = get_all_experiments_dataframe(partial(read_ngs, counts=True), exps_ngs, path_data+'NGS/')
+    df_ngs = dtf.drop_column(df_ngs, ['M2'])
+    return df_maldi.sum(), df_ngs.sum()
+
+
+def counts_per_composition(dfs, totals):
+    """Arrays of N per composition for calibr_setup['maldi_n'] and the N of calibr_setup['ngs_dm'], aligned with
+    fm.dtf.extract_observables_from_df(dfs): MALDI (experiments, media, 1, days), NGS (experiments, 1, days).
+    dfs: the data frames of prepare_ZL2030_data; totals: sample_totals(...). Raises if a composition has no total."""
+    n_maldi, n_ngs = totals
+    for df, n, what in ((dfs[1], n_maldi, 'MALDI'), (dfs[2], n_ngs, 'NGS')):
+        missing = [c for c in df.columns if c not in n.index]
+        if missing:
+            raise ValueError(f'{what}: no total for {missing[:5]}')
+    one_row = lambda df, n: pd.DataFrame([n[df.columns].astype(float).values], columns=df.columns)
+    _, (_, arr_maldi, arr_ngs) = dtf.extract_observables_from_df([dfs[0], one_row(dfs[1], n_maldi), one_row(dfs[2], n_ngs)])
+    return arr_maldi, arr_ngs
 
 
 def read_all_data_in_df(exps_platecount, exps_maldi, exps_ngs, path_data, path_out, bact_all=None, cutoff=0., cutoff_prop=0., add_name=''):
@@ -171,30 +197,30 @@ def read_platecount(exp_name, dir_data=''):
     return df.groupby('Properties').sum()
 
 
-def read_maldi(exp_name, dir_data=''):
+def read_maldi(exp_name, dir_data='', counts=False):
     """Read MALDI isolate-identification data and return genus proportions by sample."""
     filename =  f'Data on bacteria identified by MALDI-Biotyper - {_get_exp_filename(exp_name)}'
     media_filenames = ['_MRS_Aerob_wachsende_Milchsäurebakterien', '_PC_Aerobe_Keimzahl (Gesamtkeimzahl)', '_VRBD_Enterobacterales']
     if int(exp_name[1:3]) < 15:
         df_maldi = pd.read_excel(dir_data + filename+ '.xlsx', keep_default_na=True)
-        df_maldi =  _df_maldi_transform(df_maldi, exp_name, dir_data)
+        df_maldi =  _df_maldi_transform(df_maldi, exp_name, dir_data, counts=counts)
     elif int(exp_name[1:3]) == 15:
         df_maldi = pd.read_excel(dir_data + filename + '.xlsx', keep_default_na=True, skiprows=1)
-        df_maldi = _df_maldi_transform(df_maldi, exp_name, dir_data)
+        df_maldi = _df_maldi_transform(df_maldi, exp_name, dir_data, counts=counts)
     elif int(exp_name[1:3]) >= 16 and int(exp_name[1:3])<=19:
         df_maldi = []
         for media in media_filenames:
             df = pd.read_excel(dir_data + filename+media + '.xlsx', keep_default_na=True)
-            df_maldi.append(_df_maldi_transform(df, exp_name, dir_data))
+            df_maldi.append(_df_maldi_transform(df, exp_name, dir_data, counts=counts))
         df_maldi = merge_dfs(df_maldi)
     else:
         df_maldi = pd.read_excel(dir_data + filename+media_filenames[1] + '.xlsx', keep_default_na=True)
-        df_maldi = _df_maldi_transform(df_maldi, exp_name, dir_data)
+        df_maldi = _df_maldi_transform(df_maldi, exp_name, dir_data, counts=counts)
     return df_maldi
         
 
-def _df_maldi_transform(df, exp_name, dir_data=''):
-    """Transform a raw MALDI spreadsheet into genus-by-sample measurements."""
+def _df_maldi_transform(df, exp_name, dir_data='', counts=False):
+    """Transform a raw MALDI spreadsheet into genus-by-sample proportions (counts=True: numbers of identified colonies)."""
     df=df.rename(columns={"Unnamed: 0": "Species", "Taxa": "Species"})
     df=df.sort_values(by = "Species").reset_index(drop=True)
     df = df[df['Species'].isna()==False]  # noqa: E712
@@ -219,7 +245,7 @@ def _df_maldi_transform(df, exp_name, dir_data=''):
             df["_".join([ff if i!=1 else 'M1' for i, ff in enumerate(f.split('_'))])] = df[f].values
             df = df.rename(columns={f:"_".join([ff if i!=1 else 'M2' for i, ff in enumerate(f.split('_'))])})
     df = _correct_df_for_tempinterruption(df)
-    return df.apply(calc_proportion)
+    return df if counts else df.apply(calc_proportion)
 
 
 def _rename_maldi_samples(f):
@@ -246,7 +272,7 @@ def read_ngs(exp_name, **kwargs):
         return read_ngs2(exp_name, **kwargs)
 
 
-def read_ngs1(exp_name, dir_data=''):
+def read_ngs1(exp_name, dir_data='', counts=False):
     """Read the earlier NGS table format and aggregate counts into genus proportions."""
     exp_temps = EXP_TEMPS
     temp = exp_temps[exp_name[:3]]
@@ -259,10 +285,11 @@ def read_ngs1(exp_name, dir_data=''):
         d["_".join([exp_name, f[0], f'{int(temp):02d}C', f'{int(f[1]):02d}', 'ngs'])] = df[f].values
     df = pd.DataFrame(data=d)
     df = df[df.Genus!='']
-    return df.groupby('Genus').sum().apply(calc_proportion)
+    df = df.groupby('Genus').sum()
+    return df if counts else df.apply(calc_proportion)
 
 
-def read_ngs2(exp_name, dir_data=''):
+def read_ngs2(exp_name, dir_data='', counts=False):
     """Read the later NGS table format and aggregate counts into genus proportions."""
     filename = f'ZOTU_Table_{exp_name.split("-")[0]}.tsv'
     if int(exp_name[1:])<12 and int(exp_name[1:])>=8:
@@ -292,7 +319,8 @@ def read_ngs2(exp_name, dir_data=''):
     df = pd.DataFrame(data=d)
     df = df[df.Genus!='']
     df = _correct_df_for_tempinterruption(df)
-    return df.groupby('Genus').sum().apply(calc_proportion)
+    df = df.groupby('Genus').sum()
+    return df if counts else df.apply(calc_proportion)
 
 
 def read_biochem(folder_path, username, password=None):
