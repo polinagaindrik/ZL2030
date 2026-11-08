@@ -9,7 +9,7 @@ Differences to that earlier fit (differential evolution with the ZL2030 bounds a
   - objective: -2 log L with the relative noise model and the max S = 1 penalty.
     The real MALDI and NGS data have no fixed number of counts per sample, so the multinomial and Dirichlet-multinomial
     likelihoods of the in-silico fits (which need one) are not used here.
-  - bounds: in-silico bounds, e.g. lambda_exp in (0, 3) and 'Others' may grow (lower bound alpha_0 = 0.001).
+  - bounds: in-silico bounds, e.g. lambda_exp in (0, 3) and 'Others' may grow (lower bound mu_0 = 0.001).
 
 Start 0 is the earlier parameter set (clipped to the bounds), the other starts are Latin hypercube points. Comparing
 start 0 with the earlier set shows the effect of objective and bounds alone.

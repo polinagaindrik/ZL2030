@@ -26,18 +26,18 @@ def get_res_from_zl2030dict(n_cl, model='linear', dir=''):
     param_ode_zl2030 = np.round(np.array(res_zl2030['param_ode'])[n_cl_zl2030*n_exps_zl2030:-2*n_cl_zl2030], 1)
     lambd_1 = param_ode_zl2030[:n_cl]
     if model == 'linear':
-        alpha0 = param_ode_zl2030[n_cl_zl2030:n_cl_zl2030+n_cl]
-        alpha1 = param_ode_zl2030[2*n_cl_zl2030:2*n_cl_zl2030+n_cl]
+        mu0 = param_ode_zl2030[n_cl_zl2030:n_cl_zl2030+n_cl]
+        mu1 = param_ode_zl2030[2*n_cl_zl2030:2*n_cl_zl2030+n_cl]
         n_max_param = param_ode_zl2030[3*n_cl_zl2030:3*n_cl_zl2030+1]
         k_ij = param_ode_zl2030[3*n_cl_zl2030+1:].reshape(n_cl_zl2030, n_cl_zl2030)[:n_cl, :n_cl].flatten()
-        param_ode =  np.concatenate([lambd_1, alpha0, alpha1, n_max_param, k_ij])
+        param_ode =  np.concatenate([lambd_1, mu0, mu1, n_max_param, k_ij])
     elif model == 'exponential':
         lambda_exp = param_ode_zl2030[n_cl_zl2030:n_cl_zl2030+n_cl]
-        alpha0 = param_ode_zl2030[2*n_cl_zl2030:2*n_cl_zl2030+n_cl]
-        alpha1 = param_ode_zl2030[3*n_cl_zl2030:3*n_cl_zl2030+n_cl]
+        mu0 = param_ode_zl2030[2*n_cl_zl2030:2*n_cl_zl2030+n_cl]
+        mu1 = param_ode_zl2030[3*n_cl_zl2030:3*n_cl_zl2030+n_cl]
         n_max_param = param_ode_zl2030[4*n_cl_zl2030:4*n_cl_zl2030+2]
         k_ij = param_ode_zl2030[4*n_cl_zl2030+2:].reshape(n_cl_zl2030, n_cl_zl2030)[:n_cl, :n_cl].flatten()
-        param_ode =  np.concatenate([lambd_1, lambda_exp, alpha0, alpha1, n_max_param, k_ij])
+        param_ode =  np.concatenate([lambd_1, lambda_exp, mu0, mu1, n_max_param, k_ij])
     return s_x, T_x, param_ode
 
 

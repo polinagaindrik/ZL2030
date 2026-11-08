@@ -11,8 +11,8 @@ def param_bnds_ZL2030_tempexponent(n_cl, inhib=True):
         inhib_bnds = [(0., 0.) for _ in range (n_cl*n_cl)]
     param_ode_bnds = tuple([(-7., -2.)  for _ in range (n_cl)]    + # lambd_1
                             [(0., 3.)    for _ in range (n_cl)]   + # lambd_exp
-                            [(.01,  1.)  for _ in range (n_cl-1)] + [(0., 0)] + # alph_0
-                            [(.01,  2.)  for _ in range (n_cl-1)] + [(0., 0)] + # alph_exp
+                            [(.01,  1.)  for _ in range (n_cl-1)] + [(0., 0)] + # mu_0
+                            [(.01,  2.)  for _ in range (n_cl-1)] + [(0., 0)] + # mu_exp
                             [(7.5, 14.)] + [(0., 2.)]             + # N_1 and N_exp
                             inhib_bnds)
     
@@ -28,8 +28,8 @@ def param_bnds_ZL2030_templinear(n_cl, inhib=True):
     else:
         inhib_bnds = [(0., 0.) for _ in range (n_cl*n_cl)]
     param_ode_bnds = tuple([(-7., -2.)  for _ in range (n_cl)]   + # lambd_1
-                            [(.01,  1.) for _ in range (n_cl-1)] + [(0., 0)] + # alph_0 # Others  do not grow
-                            [(.2 ,  .6) for _ in range (n_cl-1)] + [(0., 0)] + # alph_1 # Others  do not grow
+                            [(.01,  1.) for _ in range (n_cl-1)] + [(0., 0)] + # mu_0 # Others  do not grow
+                            [(.2 ,  .6) for _ in range (n_cl-1)] + [(0., 0)] + # mu_1 # Others  do not grow
                             [(7.5, 14.)] +      
                             inhib_bnds), 
     return param_ode_bnds
