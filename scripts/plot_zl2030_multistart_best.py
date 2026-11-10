@@ -24,6 +24,10 @@ import main_zl2030_multistart as ms
 
 # --run <folder>: another run folder, e.g. out/refine_corrected (default: the folder of main_zl2030_multistart.py)
 RUN = (os.path.join(os.path.abspath(sys.argv[sys.argv.index('--run') + 1]), '') if '--run' in sys.argv else ms.OUT)
+# --result <json>: plot the parameters of this result file (into its folder)
+RESULT = os.path.abspath(sys.argv[sys.argv.index('--result') + 1]) if '--result' in sys.argv else None
+if RESULT:
+    RUN = os.path.join(os.path.dirname(RESULT), '')
 
 import matplotlib
 matplotlib.use('Agg')
@@ -40,7 +44,11 @@ PANEL_GAP = 0.04   # gap between the panels, fraction of a panel width (the y ax
 
 
 def best_so_far():
-    """(cost, start, full parameter vector) of the lowest cost in any start's history."""
+    """(cost, start, full parameter vector) of the lowest cost in any start's history; with --result <json>, the
+    parameters of that result file instead."""
+    if '--result' in sys.argv:
+        r = fm.output.read_from_json(os.path.basename(RESULT), dir=os.path.dirname(RESULT) + '/')
+        return float(r.get('cost', np.nan)), r.get('start', -1), np.asarray(r['param_ode'], dtype=float)
     best = (np.inf, None, None)
     for f in glob.glob(RUN + 'optimization_history_*_start*.csv'):
         with open(f) as fh:

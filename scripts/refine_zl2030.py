@@ -13,7 +13,7 @@ Output (default out/refine_corrected/):
     optimization_history_refine_start*.csv  history of each start
 Run from the root of this repository:
     python scripts/refine_zl2030.py [--source out/multistart_logk] [--out out/refine_corrected] [--n-starts 12]
-                                    [--max-minutes 360] [--counts]
+                                    [--max-minutes 360] [--counts] [--lambda-exp-min SPECIES=VALUE ...]
 --counts: MALDI and NGS with count likelihoods (multinomial / Dirichlet-multinomial with the colonies of each plate and
 the reads of each sample), as the in-silico error model. Its costs cannot be compared with those of relative noise.
 Figures and progress: add --run out/refine_corrected to plot_zl2030_multistart_best.py / show_multistart_progress.py.
@@ -70,10 +70,35 @@ def calibration_setup(out, counts=False):
     return setup, bact, media, T_x
 
 
+T_KEEP = 6.  # --lambda-exp-min: a start below the new bound keeps its lag-exit rate at this temperature (degC)
+
+
+def apply_lambda_exp_min(setup, points, bact, limits):
+    """Raise the lower bound of lambda_exp of some species ({name: value}) and move the start points into the new
+    bounds, keeping each species' lag-exit rate lambda(T_KEEP) = 10^lambda_1 T_KEEP^lambda_exp."""
+    n_cl, n_x0 = setup['n_cl'], ms.N_CL_X0(setup)
+    bnds = [list(b) for b in setup['param_bnds']]
+    for name, value in limits.items():
+        j = bact.index(name)
+        bnds[n_x0 + n_cl + j][0] = value
+    setup['param_bnds'] = tuple(tuple(b) for b in bnds)
+    moved = []
+    for p in points:
+        p = p.copy()
+        for name, value in limits.items():
+            j = bact.index(name)
+            i1, ie = n_x0 + j, n_x0 + n_cl + j
+            if p[ie] < value:
+                p[i1] += (p[ie] - value) * np.log10(T_KEEP)
+                p[ie] = value
+        moved.append(p)
+    return moved
+
+
 def best_starts(source, n):
     """[(source start, cost in the source run, parameters)] of the n best starts of a run."""
     found = []
-    for f in glob.glob(os.path.join(source, 'optimization_history_multistart_start*.csv')):
+    for f in glob.glob(os.path.join(source, 'optimization_history_*_start*.csv')):
         try:
             c, p = ms.best_of_start(f)
         except (ValueError, KeyError, pd.errors.EmptyDataError):
@@ -91,6 +116,8 @@ if __name__ == '__main__':
     ap.add_argument('--n-starts', type=int, default=12)
     ap.add_argument('--max-minutes', type=float, default=360)
     ap.add_argument('--n-jobs', type=int, default=None)
+    ap.add_argument('--lambda-exp-min', nargs='*', default=[], metavar='SPECIES=VALUE',
+                    help='raise the lower bound of lambda_exp, e.g. Acinetobacter=0.5')
     ap.add_argument('--counts', action='store_true', help='MALDI and NGS with count likelihoods, see calibration_setup')
     args = ap.parse_args()
     os.chdir(ROOT)
@@ -99,9 +126,13 @@ if __name__ == '__main__':
     start = time.time()
 
     setup, bact, media, T_x = calibration_setup(out, counts=args.counts)
-    lo, hi = np.array(setup['param_bnds'], dtype=float).T
     sources = best_starts(args.source, args.n_starts)
-    points = [np.clip(p, lo, hi) for _, _, p in sources]
+    limits = {s.split('=')[0]: float(s.split('=')[1]) for s in args.lambda_exp_min}
+    points = apply_lambda_exp_min(setup, [p for _, _, p in sources], bact, limits) if limits else [p for _, _, p in sources]
+    if limits:
+        print(f'lambda_exp lower bounds {limits}; starts below them keep their lag-exit rate at {T_KEEP:g} degC', flush=True)
+    lo, hi = np.array(setup['param_bnds'], dtype=float).T
+    points = [np.clip(p, lo, hi) for p in points]
     before = [float(cost_withS_jax(p, setup)) for p in points]
     print(f'Refining the {len(points)} best starts of {args.source} on the current data, at most {args.max_minutes:g} min '
           f'each:', flush=True)
@@ -119,7 +150,7 @@ if __name__ == '__main__':
                          'backend': 'jax', 'counts': args.counts,
                          'ngs_concentration': NGS_CONCENTRATION if args.counts else None, 's_max_penalty': ms.S_MAX_PENALTY,
                          'bact': bact, 'media': media, 'source': args.source,
-                         'source_starts': [int(r) for r, _, _ in sources]},
+                         'source_starts': [int(r) for r, _, _ in sources], 'lambda_exp_min': limits},
                         'Result_calibration_zl2030_refine.json', dir=out)
     rows, params = [], {}
     for i, ((r, c, _), b) in enumerate(zip(sources, before)):
