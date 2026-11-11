@@ -17,6 +17,7 @@ start: parameters, history of A and costs), history_dm_start<r>_round<q>.csv.
 Run from the root of this repository:
     python scripts/fit_dm_concentration.py [--source out/refine_corrected] [--out out/dm_fit] [--n-starts 12]
                                            [--rounds 6] [--minutes 60]
+--source: a run of another fit (its history files), or an earlier run of this script (its start<r>.json) to continue it.
 Figures: python scripts/plot_zl2030_multistart_best.py --result out/dm_fit/Result_calibration_zl2030_dm.json
 """
 import argparse
@@ -139,6 +140,18 @@ def run_start(task):
 _SETUP = {}
 
 
+def dm_fit_starts(source, n):
+    """[(start, -2 log L, parameters)] of the n best starts of an earlier run of this script (its start<r>.json), to
+    continue it; None if source has no such files."""
+    import glob
+    found = []
+    for f in glob.glob(os.path.join(source, 'start*.json')):
+        with open(f) as fh:
+            d = json.load(fh)
+        found.append((int(d['start']), float(d['total_neg2loglik']), np.asarray(d['param_ode'], dtype=float)))
+    return sorted(found, key=lambda x: x[1])[:n] if found else None
+
+
 def base_setup(out):
     """Count setup on the current data, once per process."""
     if 'setup' not in _SETUP:
@@ -160,7 +173,7 @@ if __name__ == '__main__':
     out = os.path.join(args.out, '')
     os.makedirs(out, exist_ok=True)
     start = time.time()
-    sources = rz.best_starts(args.source, args.n_starts)
+    sources = dm_fit_starts(args.source, args.n_starts) or rz.best_starts(args.source, args.n_starts)
     print(f'{len(sources)} starts from {args.source}, at most {args.rounds} rounds of {args.minutes:g} min', flush=True)
     tasks = [(i, p, int(r), out, args.rounds, args.minutes) for i, (r, _, p) in enumerate(sources)]
     with mp.get_context('spawn').Pool(processes=min(len(tasks), os.cpu_count())) as pool:
