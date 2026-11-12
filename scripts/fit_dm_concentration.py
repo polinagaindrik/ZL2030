@@ -16,7 +16,10 @@ Output (default out/dm_fit/): Result_calibration_zl2030_dm.json (best start), st
 start: parameters, history of A and costs), history_dm_start<r>_round<q>.csv.
 Run from the root of this repository:
     python scripts/fit_dm_concentration.py [--source out/refine_corrected] [--out out/dm_fit] [--n-starts 12]
-                                           [--rounds 6] [--minutes 60]
+                                           [--rounds 6] [--minutes 60] [--k-structure full]
+--k-structure: reduced inhibition matrix (fusion_model cost_function.K_STRUCTURES): 'column' k_ij = b_j, 'product'
+k_ij = a_i b_j, 'none' k_ij = 0. The start points are the closest reduced form of the source points. The models are
+nested in 'full', so their total -2 log L can be compared: scripts/compare_inhibition_structures.py.
 --source: a run of another fit (its history files), or an earlier run of this script (its start<r>.json) to continue it.
 Figures: python scripts/plot_zl2030_multistart_best.py --result out/dm_fit/Result_calibration_zl2030_dm.json
 """
@@ -37,7 +40,8 @@ import main_zl2030_multistart as ms
 import refine_zl2030 as rz
 from fusion_model.parameter_estimation import profile_likelihood as pl
 from fusion_model.parameter_estimation.cost_function import (multinomial_counts, dm_neg2loglik, dm_concentration_mle,
-                                                             residuals_withS)
+                                                             residuals_withS, ode_params_for_model, structured_k,
+                                                             k_structure_bounds, k_to_structure, K_STRUCTURES)
 
 import numpy as np
 import pandas as pd
@@ -63,7 +67,7 @@ def model_proportions(p, setup):
     days, (_, ma, ng) = setup['data_array']
     days = np.asarray(days, dtype=float)
     x0 = p[:n * len(exps)].reshape(len(exps), n)
-    ode, s_x = p[n * len(exps):-n * n_media], p[-n * n_media:].reshape(n_media, n)
+    ode, s_x = ode_params_for_model(p[n * len(exps):-n * n_media], setup), p[-n * n_media:].reshape(n_media, n)
     m_maldi, m_ngs = np.full(np.shape(ma), np.nan), np.full(np.shape(ng), np.nan)
     for i, e in enumerate(exps):
         const = [[setup['exp_temps'][e]], n, setup['media']]
@@ -108,8 +112,8 @@ def total_neg2loglik(p, setup, a_m, a_n):
 
 def run_start(task):
     """Alternate least-squares refinement (A fixed) and estimation of A for one start."""
-    r, p, source, out, rounds, minutes = task
-    setup = base_setup(out)
+    r, p, source, out, rounds, minutes, structure = task
+    setup = base_setup(out, structure)
     lo, hi = np.array(setup['param_bnds'], dtype=float).T
     p = np.clip(np.asarray(p, dtype=float), lo, hi)
     a_m, a_n, _, _ = estimate_concentrations(p, setup)
@@ -131,7 +135,7 @@ def run_start(task):
               f'(log10 A change {change:.4f})', flush=True)
         with open(out + f'start{r}.json', 'w') as fh:
             json.dump({'start': r, 'source_start': source, 'param_ode': [float(x) for x in p], 'A_maldi': a_m,
-                       'A_ngs': a_n, 'total_neg2loglik': total, 'log': log}, fh, indent=1)
+                       'A_ngs': a_n, 'total_neg2loglik': total, 'log': log, 'k_structure': structure}, fh, indent=1)
         if change < A_TOL and improvement < TOTAL_TOL:
             break
     return r, source, p, a_m, a_n, log
@@ -152,11 +156,19 @@ def dm_fit_starts(source, n):
     return sorted(found, key=lambda x: x[1])[:n] if found else None
 
 
-def base_setup(out):
-    """Count setup on the current data, once per process."""
+def k_start_of(setup):
+    """Index of the first inhibition term k_ij in the parameter vector."""
+    return setup['n_cl'] * len(setup['exps']) + 4 * setup['n_cl'] + 2
+
+
+def base_setup(out, structure='full'):
+    """Count setup on the current data, once per process; structure: reduced inhibition matrix (--k-structure)."""
     if 'setup' not in _SETUP:
         s, bact, media, T_x = rz.calibration_setup(out, counts=True)
         s = dict(s, maldi_counts=s['maldi_n'], ngs_counts=s['ngs_dm'][0], jax_options={'structured_jacobian': True})
+        if structure != 'full':
+            s['k_structure'] = structure
+            s['param_bnds'] = k_structure_bounds(s['param_bnds'], s['n_cl'], structure, k_start_of(s))
         _SETUP.update(setup=s, bact=bact, media=media, T_x=T_x)
     return _SETUP['setup']
 
@@ -168,6 +180,7 @@ if __name__ == '__main__':
     ap.add_argument('--n-starts', type=int, default=12)
     ap.add_argument('--rounds', type=int, default=6)
     ap.add_argument('--minutes', type=float, default=60., help='time limit of each least-squares refinement')
+    ap.add_argument('--k-structure', default='full', choices=K_STRUCTURES, help='reduced inhibition matrix')
     args = ap.parse_args()
     os.chdir(ROOT)
     out = os.path.join(args.out, '')
@@ -175,10 +188,26 @@ if __name__ == '__main__':
     start = time.time()
     sources = dm_fit_starts(args.source, args.n_starts) or rz.best_starts(args.source, args.n_starts)
     print(f'{len(sources)} starts from {args.source}, at most {args.rounds} rounds of {args.minutes:g} min', flush=True)
-    tasks = [(i, p, int(r), out, args.rounds, args.minutes) for i, (r, _, p) in enumerate(sources)]
+    structure = args.k_structure
+    setup0 = base_setup(out, structure)
+    n_cl0 = setup0['n_cl']
+    if structure != 'full':  # sources of a full fit: closest reduced form; sources of the same structure: unchanged
+        lo0, hi0 = np.array(setup0['param_bnds'], dtype=float).T
+        def to_structure(p, i):
+            if np.all((p >= lo0 - 1e-9) & (p <= hi0 + 1e-9)):
+                return p
+            if structure == 'product' and i % 2:  # every second start: the 'column' form with a_i = 1, which 'product' contains
+                q = k_to_structure(p, n_cl0, 'column', k_start_of(setup0))
+                ks, idx = k_start_of(setup0), np.arange(n_cl0)
+                k = q[ks:ks + n_cl0 * n_cl0].reshape(n_cl0, n_cl0)
+                k[idx, (idx + 1) % n_cl0] = 1.
+                return q
+            return k_to_structure(p, n_cl0, structure, k_start_of(setup0))
+        sources = [(r, c, to_structure(np.asarray(p, dtype=float), i)) for i, (r, c, p) in enumerate(sources)]
+        print(f'Inhibition structure {structure!r}: {int(np.sum(hi0 > lo0))} free parameters', flush=True)
+    tasks = [(i, p, int(r), out, args.rounds, args.minutes, structure) for i, (r, _, p) in enumerate(sources)]
     with mp.get_context('spawn').Pool(processes=min(len(tasks), os.cpu_count())) as pool:
         results = pool.map(run_start, tasks, chunksize=1)
-    base_setup(out)
     rows = [{'start': r, 'source_start': src, 'A_maldi': a_m, 'A_ngs': a_n, 'total_neg2loglik': log[-1]['total'],
              'rounds': log[-1]['round']} for r, src, p, a_m, a_n, log in results]
     table = pd.DataFrame(rows).sort_values('total_neg2loglik')
@@ -192,7 +221,11 @@ if __name__ == '__main__':
                          'T_x': _SETUP['T_x'], 'cost': float(table.iloc[0]['total_neg2loglik']), 'A_maldi': a_m,
                          'A_ngs': a_n, 'objective': 'Dirichlet-multinomial MALDI and NGS, A estimated; plate counts relative',
                          'bact': _SETUP['bact'], 'media': _SETUP['media'], 'source': args.source, 'source_start': src,
-                         'start': r_best, 'log': log}, 'Result_calibration_zl2030_dm.json', dir=out)
+                         'start': r_best, 'log': log, 'k_structure': structure,
+                         'k_full': structured_k(np.asarray(p)[k_start_of(setup0):k_start_of(setup0) + n_cl0 * n_cl0], n_cl0, structure),
+                         'n_free': int(np.sum(np.diff(np.array(setup0['param_bnds'], dtype=float), axis=1) > 0)) + 2,
+                         'n_data': int(sum(dm_setup(setup0, a_m, a_n)['aggregation_func'].n_data))},
+                        'Result_calibration_zl2030_dm.json', dir=out)
     near = int((table['delta_to_best'] <= ms.NEAR_BEST).sum())
     print(f'{near} of {len(table)} starts within {ms.NEAR_BEST} of the best -2 log L; '
           f'{(time.time() - start) / 60.:.1f} min in total, results in {out}', flush=True)
