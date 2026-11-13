@@ -39,7 +39,12 @@ import pandas as pd
 
 RUNS = {'full': 'out/dm_fit2', 'product': 'out/k_product2', 'shared': 'out/k_shared', 'shared_c': 'out/k_sharedc',
         'shared_abundance': 'out/k_shared_abundance', 'shared_taxonomy': 'out/k_shared_taxonomy',
-        'column': 'out/k_column', 'none': 'out/k_none'}
+        'column': 'out/k_column', 'none': 'out/k_none', 'product_taxonomy': 'out/k_product_taxonomy',
+        'product_gmodel': 'out/k_product_gmodel', 'shared_gmodel': 'out/k_shared_gmodel',
+        # lag models (lambda = c mu: lratio, by taxonomy / one c: _tax / _all, lambda_exp = 0: lconst) and N_exp = 0
+        'shared_lratio': 'out/k_shared_lratio', 'shared_lratio_tax': 'out/k_shared_lratio_tax',
+        'shared_lratio_all': 'out/k_shared_lratio_all', 'shared_lconst': 'out/k_shared_lconst',
+        'shared_taxonomy_lratio': 'out/k_shared_taxonomy_lratio', 'shared_nexp0': 'out/k_shared_nexp0'}
 X0_DAYS = 1.            # days used to fit the initial values of the left-out experiment
 TRAIN_MINUTES = 45.
 OUT = 'out/cv_inhibition/'
@@ -68,6 +73,16 @@ def structure_setup(result):
         if result.get('k_groups') is not None:
             s['k_groups'] = list(result['k_groups'])
         s['param_bnds'] = k_structure_bounds(s['param_bnds'], s['n_cl'], structure, fd.k_start_of(s), groups=s.get('k_groups'))
+    lambda_mode = result.get('lambda_mode') or 'free'
+    if lambda_mode != 'free':
+        from fusion_model.parameter_estimation.cost_function import lambda_mode_bounds
+        s['lambda_mode'] = lambda_mode
+        if result.get('lambda_groups') is not None:
+            s['lambda_groups'] = list(result['lambda_groups'])
+        s['param_bnds'] = lambda_mode_bounds(s['param_bnds'], s['n_cl'], lambda_mode, fd.ode_start_of(s),
+                                             groups=s.get('lambda_groups'))
+    if result.get('n_exp_fixed'):
+        s['param_bnds'] = fd.fix_nexp_bounds(s['param_bnds'], s)
     return s
 
 
