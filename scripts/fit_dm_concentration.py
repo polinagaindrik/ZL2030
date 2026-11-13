@@ -20,6 +20,10 @@ Run from the root of this repository:
 --k-structure: reduced inhibition matrix (fusion_model cost_function.K_STRUCTURES): 'column' k_ij = b_j, 'product'
 k_ij = a_i b_j, 'none' k_ij = 0. The start points are the closest reduced form of the source points. The models are
 nested in 'full', so their total -2 log L can be compared: scripts/compare_inhibition_structures.py.
+--k-groups (with --k-structure product / shared / shared_c): species sharing one inhibitor strength, 'abundance' (from
+the NGS shares: rare genera -> background, genera with proportional share curves -> one group, fm.inhib_groups), 'model'
+(the same rules on the fitted absolute curves x2_j(t) of an earlier fit without groups, --groups-from <its result JSON>;
+the media are handled by the model) or 'taxonomy' (lactic acid bacteria versus all others). The groups are written to <out>/inhibition_groups.json and shown in inhibition_groups.png.
 --source: a run of another fit (its history files), or an earlier run of this script (its start<r>.json) to continue it.
 Figures: python scripts/plot_zl2030_multistart_best.py --result out/dm_fit/Result_calibration_zl2030_dm.json
 """
@@ -112,8 +116,8 @@ def total_neg2loglik(p, setup, a_m, a_n):
 
 def run_start(task):
     """Alternate least-squares refinement (A fixed) and estimation of A for one start."""
-    r, p, source, out, rounds, minutes, structure = task
-    setup = base_setup(out, structure)
+    r, p, source, out, rounds, minutes, structure, groups_method, groups_from = task
+    setup = base_setup(out, structure, groups_method, groups_from)
     lo, hi = np.array(setup['param_bnds'], dtype=float).T
     p = np.clip(np.asarray(p, dtype=float), lo, hi)
     a_m, a_n, _, _ = estimate_concentrations(p, setup)
@@ -161,14 +165,35 @@ def k_start_of(setup):
     return setup['n_cl'] * len(setup['exps']) + 4 * setup['n_cl'] + 2
 
 
-def base_setup(out, structure='full'):
-    """Count setup on the current data, once per process; structure: reduced inhibition matrix (--k-structure)."""
+GROUPS_FROM = None  # --groups-from: result JSON of a fit without groups, for --k-groups model
+
+
+def inhibition_groups(s, bact, method, groups_from=None):
+    """Groups of genera sharing one strength (fm.inhib_groups; 'abundance' uses the NGS shares only, 'model' the fitted
+    curves of the result groups_from) and the result."""
+    if method == 'model':
+        with open(groups_from) as fh:
+            src = json.load(fh)
+        s_src = dict(s)
+        s_src.pop('k_groups', None)
+        if src.get('k_groups') is not None:
+            raise ValueError('--groups-from must be a fit without groups')
+        return fm.inhib_groups.inhibition_groups('model', param=np.asarray(src['param_ode'], dtype=float), calibr_setup=s_src)
+    return fm.inhib_groups.inhibition_groups(method, data_array=s['data_array'], names=bact)
+
+
+def base_setup(out, structure='full', groups_method='none', groups_from=None):
+    """Count setup on the current data, once per process; structure: reduced inhibition matrix (--k-structure),
+    groups_method: species sharing one strength (--k-groups)."""
     if 'setup' not in _SETUP:
         s, bact, media, T_x = rz.calibration_setup(out, counts=True)
         s = dict(s, maldi_counts=s['maldi_n'], ngs_counts=s['ngs_dm'][0], jax_options={'structured_jacobian': True})
         if structure != 'full':
             s['k_structure'] = structure
-            s['param_bnds'] = k_structure_bounds(s['param_bnds'], s['n_cl'], structure, k_start_of(s))
+            if groups_method != 'none':
+                s['k_groups'] = inhibition_groups(s, bact, groups_method, groups_from)[0]
+            s['param_bnds'] = k_structure_bounds(s['param_bnds'], s['n_cl'], structure, k_start_of(s),
+                                                 groups=s.get('k_groups'))
         _SETUP.update(setup=s, bact=bact, media=media, T_x=T_x)
     return _SETUP['setup']
 
@@ -181,6 +206,9 @@ if __name__ == '__main__':
     ap.add_argument('--rounds', type=int, default=6)
     ap.add_argument('--minutes', type=float, default=60., help='time limit of each least-squares refinement')
     ap.add_argument('--k-structure', default='full', choices=K_STRUCTURES, help='reduced inhibition matrix')
+    ap.add_argument('--k-groups', default='none', choices=fm.inhib_groups.METHODS,
+                    help="species sharing one inhibitor strength (with --k-structure product / shared / shared_c)")
+    ap.add_argument('--groups-from', default=None, help='--k-groups model: result JSON of a fit without groups')
     args = ap.parse_args()
     os.chdir(ROOT)
     out = os.path.join(args.out, '')
@@ -189,13 +217,39 @@ if __name__ == '__main__':
     sources = dm_fit_starts(args.source, args.n_starts) or rz.best_starts(args.source, args.n_starts)
     print(f'{len(sources)} starts from {args.source}, at most {args.rounds} rounds of {args.minutes:g} min', flush=True)
     structure = args.k_structure
-    setup0 = base_setup(out, structure)
+    if args.k_groups == 'model' and not args.groups_from:
+        raise SystemExit('--k-groups model needs --groups-from <Result_calibration_zl2030_dm.json of a fit without groups>')
+    setup0 = base_setup(out, structure, args.k_groups, args.groups_from)
     n_cl0 = setup0['n_cl']
+    if setup0.get('k_groups') is not None:
+        groups0, res0 = inhibition_groups(setup0, _SETUP['bact'], args.k_groups, args.groups_from)
+        info = {'method': args.k_groups, 'groups': groups0, 'genera': _SETUP['bact'],
+                'clusters': [[_SETUP['bact'][j] for j in c] for c in res0['clusters']]}
+        if args.k_groups in ('abundance', 'model'):
+            info.update(share=[float(v) for v in res0['share']], min_share=res0['min_share'], min_similarity=res0['min_similarity'],
+                        groups_from=args.groups_from)
+            fm.inhib_groups.plot_inhibition_groups(res0, _SETUP['bact'], out + 'inhibition_groups.png',
+                                                   title='ZL2030: genera sharing one inhibitor strength')
+        with open(out + 'inhibition_groups.json', 'w') as fh:
+            json.dump(info, fh, indent=1)
+        print('Inhibition groups:', info['clusters'], flush=True)
     if structure != 'full':  # sources of a full fit: closest reduced form; sources of the same structure: unchanged
         lo0, hi0 = np.array(setup0['param_bnds'], dtype=float).T
         def to_structure(p, i):
             if np.all((p >= lo0 - 1e-9) & (p <= hi0 + 1e-9)):
                 return p
+            if setup0.get('k_groups') is not None:  # shared layout without groups -> group strength = mean of members
+                ks = k_start_of(setup0)
+                k = p[ks:ks + n_cl0 * n_cl0].reshape(n_cl0, n_cl0)
+                idx = np.arange(n_cl0)
+                b = k[(idx + 1) % n_cl0, idx].copy()
+                g = np.array(setup0['k_groups'])
+                for gg in set(g):
+                    members = np.where(g == gg)[0]
+                    k[(members + 1) % n_cl0, members] = 0.
+                    k[(members[0] + 1) % n_cl0, members[0]] = b[members].mean()
+                q = p.copy(); q[ks:ks + n_cl0 * n_cl0] = k.ravel()
+                return np.clip(q, lo0, hi0)
             if structure == 'product' and i % 2:  # every second start: the 'column' form with a_i = 1, which 'product' contains
                 q = k_to_structure(p, n_cl0, 'column', k_start_of(setup0))
                 ks, idx = k_start_of(setup0), np.arange(n_cl0)
@@ -205,7 +259,8 @@ if __name__ == '__main__':
             return k_to_structure(p, n_cl0, structure, k_start_of(setup0))
         sources = [(r, c, to_structure(np.asarray(p, dtype=float), i)) for i, (r, c, p) in enumerate(sources)]
         print(f'Inhibition structure {structure!r}: {int(np.sum(hi0 > lo0))} free parameters', flush=True)
-    tasks = [(i, p, int(r), out, args.rounds, args.minutes, structure) for i, (r, _, p) in enumerate(sources)]
+    tasks = [(i, p, int(r), out, args.rounds, args.minutes, structure, args.k_groups, args.groups_from)
+             for i, (r, _, p) in enumerate(sources)]
     with mp.get_context('spawn').Pool(processes=min(len(tasks), os.cpu_count())) as pool:
         results = pool.map(run_start, tasks, chunksize=1)
     rows = [{'start': r, 'source_start': src, 'A_maldi': a_m, 'A_ngs': a_n, 'total_neg2loglik': log[-1]['total'],
@@ -221,8 +276,9 @@ if __name__ == '__main__':
                          'T_x': _SETUP['T_x'], 'cost': float(table.iloc[0]['total_neg2loglik']), 'A_maldi': a_m,
                          'A_ngs': a_n, 'objective': 'Dirichlet-multinomial MALDI and NGS, A estimated; plate counts relative',
                          'bact': _SETUP['bact'], 'media': _SETUP['media'], 'source': args.source, 'source_start': src,
-                         'start': r_best, 'log': log, 'k_structure': structure,
-                         'k_full': structured_k(np.asarray(p)[k_start_of(setup0):k_start_of(setup0) + n_cl0 * n_cl0], n_cl0, structure),
+                         'start': r_best, 'log': log, 'k_structure': structure, 'k_groups': setup0.get('k_groups'),
+                         'k_full': structured_k(np.asarray(p)[k_start_of(setup0):k_start_of(setup0) + n_cl0 * n_cl0], n_cl0, structure,
+                                                groups=setup0.get('k_groups')),
                          'n_free': int(np.sum(np.diff(np.array(setup0['param_bnds'], dtype=float), axis=1) > 0)) + 2,
                          'n_data': int(sum(dm_setup(setup0, a_m, a_n)['aggregation_func'].n_data))},
                         'Result_calibration_zl2030_dm.json', dir=out)
