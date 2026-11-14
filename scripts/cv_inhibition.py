@@ -134,8 +134,19 @@ def _run_fold(structure, e):
     start = time.time()
     # 1) training without experiment e
     s_train = fd.dm_setup(masked(s, lambda ee, d: ee != ie), a_m, a_n)
-    p_train, _ = fm.pest.local_optimization(fm.pest.cost_withS, p0, s_train, method='least_squares', maxiter=500, n_jobs=1,
-                                            backend='jax', max_minutes=TRAIN_MINUTES, history_file=OUT + f'history_{structure}_{e}.csv')
+    rng = np.random.default_rng(abs(hash((structure, e))) % 2**32)
+    for attempt in range(3):   # a failed SVD in the least-squares step: retry from a slightly perturbed start
+        try:
+            t_train = time.time()
+            p_train, _ = fm.pest.local_optimization(fm.pest.cost_withS, p0, s_train, method='least_squares', maxiter=500, n_jobs=1,
+                                                    backend='jax', max_minutes=TRAIN_MINUTES, history_file=OUT + f'history_{structure}_{e}.csv')
+            train_minutes = (time.time() - t_train) / 60.
+            break
+        except np.linalg.LinAlgError as ex:
+            if attempt == 2:
+                raise
+            print(f'[{structure} {e}] {ex}: retry {attempt + 1} from a perturbed start', flush=True)
+            p0 = np.clip(p0 + 1e-3 * (hi - lo) * np.where(hi > lo, rng.standard_normal(len(p0)), 0.), lo, hi)
     p_train = np.asarray(p_train, dtype=float)
     groups, _ = residuals_withS(p_train, s_train)
     r_pc_train = np.asarray(groups[2]); sigma2 = float(np.mean(r_pc_train**2))
@@ -158,7 +169,8 @@ def _run_fold(structure, e):
     row = dict(structure=structure, experiment=e, score=dm_m + dm_n + pc_term, score_maldi=dm_m, score_ngs=dm_n,
                score_platecount=pc_term, n_pc=len(r_pc), rmse_log10_pc=float(np.sqrt(np.mean(r_pc**2)) / np.log(10)) if len(r_pc) else np.nan,
                n_maldi=int(np.isfinite(km).sum()), n_ngs=int(np.isfinite(kn).sum()), sigma_log10_train=float(np.sqrt(sigma2) / np.log(10)),
-               minutes=(time.time() - start) / 60.)
+               minutes=(time.time() - start) / 60., train_minutes=train_minutes,
+               train_hit_time_limit=bool(train_minutes >= 0.98 * TRAIN_MINUTES), train_attempts=attempt + 1)
     with open(out_file, 'w') as fh:
         json.dump(row, fh, indent=1)
     print(f'[{structure} {e}] score {row["score"]:.1f} (MALDI {dm_m:.1f}, NGS {dm_n:.1f}, plate counts {pc_term:.1f}), '
@@ -176,6 +188,8 @@ def summary(reference='product'):
     df = pd.DataFrame(rows)
     piv = df.pivot(index='experiment', columns='structure', values='score')
     folds = piv.dropna().index
+    if 'train_hit_time_limit' in df:
+        print('folds whose training hit the time limit:', df.groupby('structure').train_hit_time_limit.sum().astype(int).to_dict())
     tab = df.groupby('structure').agg(folds=('score', 'size'), score_sum=('score', 'sum'), maldi=('score_maldi', 'sum'),
                                       ngs=('score_ngs', 'sum'), platecount=('score_platecount', 'sum'),
                                       rmse_log10_pc=('rmse_log10_pc', 'mean'))
