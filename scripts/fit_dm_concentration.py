@@ -24,6 +24,8 @@ nested in 'full', so their total -2 log L can be compared: scripts/compare_inhib
 the NGS shares: rare genera -> background, genera with proportional share curves -> one group, fm.inhib_groups), 'model'
 (the same rules on the fitted absolute curves x2_j(t) of an earlier fit without groups, --groups-from <its result JSON>;
 the media are handled by the model) or 'taxonomy' (lactic acid bacteria versus all others). The groups are written to <out>/inhibition_groups.json and shown in inhibition_groups.png.
+--inhibitor: 'algebraic' (default), 'F1' or 'F2' inhibitor pool of the pool model (fusion_model.model.ode_structure);
+--k-scale scales the inhibition coefficients of the sources (F1 accumulates the load over time: about 0.1).
 --lambda-mode: lag model, 'free' lambda = 10^l1 T^l_exp (default), 'const' l_exp = 0, 'ratio' lambda_i(T) = c_i mu_i(T)
 (log10 c in the lambda_1 entries; --lambda-groups taxonomy / all: genera sharing c). Free-lambda sources are converted
 with lambda(6 C) and mu(6 C) kept.
@@ -79,7 +81,7 @@ def model_proportions(p, setup):
     m_maldi, m_ngs = np.full(np.shape(ma), np.nan), np.full(np.shape(ng), np.nan)
     for i, e in enumerate(exps):
         const = [[setup['exp_temps'][e]], n, setup['media']]
-        c0 = np.concatenate((10**x0[i], np.ones(n + 1)))
+        c0 = fm.mdl.initial_state(setup['model'], 10**x0[i], n, ode, setup['exp_temps'][e])
         c = fm.mdl.model_ODE_solution(setup['model'], days, ode, c0, const)
         counts = fm.mdl.get_bacterial_count(c, n, 2)
         counts0 = fm.mdl.get_bacterial_count(c0.reshape(-1, 1), n, 2)
@@ -120,8 +122,8 @@ def total_neg2loglik(p, setup, a_m, a_n):
 
 def run_start(task):
     """Alternate least-squares refinement (A fixed) and estimation of A for one start."""
-    r, p, source, out, rounds, minutes, structure, groups_method, groups_from, lambda_mode, lambda_groups, fix_nexp = task
-    setup = base_setup(out, structure, groups_method, groups_from, lambda_mode, lambda_groups, fix_nexp)
+    r, p, source, out, rounds, minutes, structure, groups_method, groups_from, lambda_mode, lambda_groups, fix_nexp, inhibitor = task
+    setup = base_setup(out, structure, groups_method, groups_from, lambda_mode, lambda_groups, fix_nexp, inhibitor)
     lo, hi = np.array(setup['param_bnds'], dtype=float).T
     p = np.clip(np.asarray(p, dtype=float), lo, hi)
     a_m, a_n, _, _ = estimate_concentrations(p, setup)
@@ -214,13 +216,14 @@ def lambda_groups_of(method, bact):
 
 
 def base_setup(out, structure='full', groups_method='none', groups_from=None, lambda_mode='free', lambda_groups='none',
-               fix_nexp=False):
+               fix_nexp=False, inhibitor='algebraic'):
     """Count setup on the current data, once per process; structure: reduced inhibition matrix (--k-structure),
     groups_method: species sharing one strength (--k-groups); lambda_mode: lag model (--lambda-mode, see
     fusion_model cost_function.ode_params_for_model), lambda_groups: species sharing c (--lambda-groups)."""
     if 'setup' not in _SETUP:
         s, bact, media, T_x = rz.calibration_setup(out, counts=True)
-        s = dict(s, maldi_counts=s['maldi_n'], ngs_counts=s['ngs_dm'][0], jax_options={'structured_jacobian': True})
+        s = dict(s, maldi_counts=s['maldi_n'], ngs_counts=s['ngs_dm'][0], jax_options={'structured_jacobian': True},
+                 model=fm.mdl.model_for_inhibitor(inhibitor))   # inhibitor pool F1 / F2 or the algebraic load
         if structure != 'full':
             s['k_structure'] = structure
             if groups_method != 'none':
@@ -253,6 +256,11 @@ if __name__ == '__main__':
     ap.add_argument('--groups-from', default=None, help='--k-groups model: result JSON of a fit without groups')
     ap.add_argument('--lambda-mode', default='free', choices=LAMBDA_MODES,
                     help="lag model: 'free' lambda = 10^l1 T^l_exp, 'const' l_exp = 0, 'ratio' lambda = c mu(T)")
+    ap.add_argument('--inhibitor', default='algebraic', choices=('algebraic', 'F1', 'F2'),
+                    help="inhibition: 'algebraic' load = current abundances, inhibitor pool 'F1' (produced by all growing "
+                         "cells) or 'F2' (produced by the growing cells times the resource), fusion_model.model.ode_structure")
+    ap.add_argument('--k-scale', type=float, default=1.,
+                    help='factor on the inhibition coefficients of the sources (start of another inhibitor model)')
     ap.add_argument('--fix-nexp', action='store_true',
                     help='capacity independent of temperature: N_exp = 0 (N_1 of the sources set to keep N at 6 C)')
     ap.add_argument('--lambda-groups', default='none', choices=('none', 'taxonomy', 'all'),
@@ -267,7 +275,8 @@ if __name__ == '__main__':
     structure = args.k_structure
     if args.k_groups == 'model' and not args.groups_from:
         raise SystemExit('--k-groups model needs --groups-from <Result_calibration_zl2030_dm.json of a fit without groups>')
-    setup0 = base_setup(out, structure, args.k_groups, args.groups_from, args.lambda_mode, args.lambda_groups, args.fix_nexp)
+    setup0 = base_setup(out, structure, args.k_groups, args.groups_from, args.lambda_mode, args.lambda_groups, args.fix_nexp,
+                        args.inhibitor)
     n_cl0 = setup0['n_cl']
     if setup0.get('k_groups') is not None:
         groups0, res0 = inhibition_groups(setup0, _SETUP['bact'], args.k_groups, args.groups_from)
@@ -327,8 +336,14 @@ if __name__ == '__main__':
             return p
         sources = [(r, c, to_nexp0(np.asarray(p, dtype=float))) for r, c, p in sources]
         print('Capacity independent of temperature (N_exp = 0)', flush=True)
+    if args.k_scale != 1.:   # start of another inhibitor model: strengths of the sources scaled (k block)
+        ks0 = k_start_of(setup0)
+        def scale_k(p):
+            p = np.array(p, dtype=float); p[ks0:ks0 + n_cl0 * n_cl0] *= args.k_scale
+            return np.clip(p, *np.array(setup0['param_bnds'], dtype=float).T)
+        sources = [(r, c, scale_k(p)) for r, c, p in sources]
     tasks = [(i, p, int(r), out, args.rounds, args.minutes, structure, args.k_groups, args.groups_from,
-              args.lambda_mode, args.lambda_groups, args.fix_nexp) for i, (r, _, p) in enumerate(sources)]
+              args.lambda_mode, args.lambda_groups, args.fix_nexp, args.inhibitor) for i, (r, _, p) in enumerate(sources)]
     with mp.get_context('spawn').Pool(processes=min(len(tasks), os.cpu_count())) as pool:
         results = pool.map(run_start, tasks, chunksize=1)
     rows = [{'start': r, 'source_start': src, 'A_maldi': a_m, 'A_ngs': a_n, 'total_neg2loglik': log[-1]['total'],
@@ -346,7 +361,7 @@ if __name__ == '__main__':
                          'bact': _SETUP['bact'], 'media': _SETUP['media'], 'source': args.source, 'source_start': src,
                          'start': r_best, 'log': log, 'k_structure': structure, 'k_groups': setup0.get('k_groups'),
                          'lambda_mode': args.lambda_mode, 'lambda_groups': setup0.get('lambda_groups'),
-                         'n_exp_fixed': bool(args.fix_nexp),
+                         'n_exp_fixed': bool(args.fix_nexp), 'inhibitor': args.inhibitor,
                          'k_full': structured_k(np.asarray(p)[k_start_of(setup0):k_start_of(setup0) + n_cl0 * n_cl0], n_cl0, structure,
                                                 groups=setup0.get('k_groups')),
                          'n_free': int(np.sum(np.diff(np.array(setup0['param_bnds'], dtype=float), axis=1) > 0)) + 2,

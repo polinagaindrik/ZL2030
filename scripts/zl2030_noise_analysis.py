@@ -52,7 +52,7 @@ NGS_DEPTH_INSILICO = 56000   # N_R of the in-silico data
 NGS_A_SCENARIOS = {'low': 5000., 'baseline': 2000., 'high': 300.}
 MALDI_N_SCENARIOS = {'low': 96, 'baseline': 48, 'high': 24}
 PC_SIGMA_SCENARIOS = {'low': 0.10, 'baseline': 0.15, 'high': 0.30}
-FROZEN_X0_FILE = os.path.join(ROOT, '..', 'fusion_model_paper', 'model_paper', 'setup', 'Result_calibration_zl2030_copy.json')
+FROZEN_X0_FILE = os.path.join(ROOT, '..', 'fusion_model_paper', 'model_paper', 'setups', 'setup', 'Result_calibration_zl2030_copy.json')
 # the x0 bounds of these fits are (0, 5)
 NEWER_FITS = {'multistart_logk': 'out/multistart_logk/Result_calibration_zl2030_multistart.json',
               'refine_corrected': 'out/refine_corrected/Result_calibration_zl2030_refine.json',
