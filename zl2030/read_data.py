@@ -15,26 +15,81 @@ from fusion_model.data.output import read_from_json
 EXP_TEMPS = {'V01': 2., 'V02': 10., 'V03': 14., 'V04': 14., 'V05': 10., 'V06': 14., 'V07': 2., 'V08': 2., 'V09': 10.,
              **{f'V{i:02d}': 2. for i in range(10, 29)}}
 
+# NGS genera that are probably reagent / kit contamination, not meat flora (marked only, NOT removed by default):
+# listed as contaminants of extraction kits and reagents (Salter et al. 2014, doi:10.1186/s12915-014-0087-z), never
+# identified by MALDI among ~31 000 colonies of ZL2030, and their share is highest in samples with a low bacterial load.
+# Streptophyta: chloroplast 16S (plant DNA). Remove them with drop_taxa=SUSPECTED_NGS_CONTAMINANTS (prepare_ZL2030_data,
+# sample_totals, ...); the default drop_taxa=() keeps all reads, as in the earlier fits. Without blank (negative)
+# controls of the sequencing this is circumstantial: a falling share with the load alone also fits real flora that does
+# not grow, so culture (MALDI) is the deciding criterion.
+SUSPECTED_NGS_CONTAMINANTS = ('Bradyrhizobium', 'Sphingomonas', 'Burkholderia', 'Deinococcus', 'Paracoccus',
+                              'Propionibacterium', 'Ralstonia', 'Methylobacterium', 'Streptophyta')
 
-def get_bacteria_for_model(exps_maldi, exps_ngs, path_data, cutoff=0., cutoff_prop=0.,):
-    """Load MALDI and NGS experiments and return their shared filtered bacterial set."""
-    df_ngs = get_all_experiments_dataframe(read_ngs, exps_ngs, path_data+'NGS/')
+# Order Enterobacterales (all seven families of the current taxonomy: Enterobacteriaceae, Yersiniaceae, Hafniaceae,
+# Erwiniaceae, Morganellaceae, Pectobacteriaceae, Budviciaceae). With group_enterobacterales=True they are read as one
+# taxon 'Enterobacterales': in NGS all reads of the order (most are classified to family only, 'Enterobacteriales;
+# Enterobacteriaceae;;', and are otherwise dropped for lack of a genus name), in MALDI these genera. The selective medium
+# of the group is VRBD (media=('PC', 'MRS', 'VRBD')). Default False: the reading of the earlier fits.
+ENTEROBACTERALES = 'Enterobacterales'
+ENTEROBACTERALES_GENERA = frozenset({
+    'Atlantibacter', 'Buttiauxella', 'Citrobacter', 'Cronobacter', 'Enterobacter', 'Escherichia', 'Escherichia/Shigella',
+    'Franconibacter', 'Klebsiella', 'Kluyvera', 'Kosakonia', 'Leclercia', 'Lelliottia', 'Pseudescherichia', 'Raoultella',
+    'Salmonella', 'Shigella', 'Siccibacter', 'Enterobacteriaceae',                                # Enterobacteriaceae
+    'Serratia', 'Yersinia', 'Ewingella', 'Rahnella',                                              # Yersiniaceae
+    'Hafnia', 'Obesumbacterium', 'Edwardsiella',                                                  # Hafniaceae
+    'Erwinia', 'Pantoea', 'Rosenbergiella',                                                       # Erwiniaceae
+    'Morganella', 'Proteus', 'Providencia',                                                       # Morganellaceae
+    'Pectobacterium', 'Dickeya', 'Lonsdalea',                                                     # Pectobacteriaceae
+    'Budvicia', 'Pragia'})                                                                        # Budviciaceae
+DEFAULT_MEDIA = ('PC', 'MRS')
+ALL_MEDIA = ('PC', 'MRS', 'VRBD')
+
+
+def _ngs_genus(tax, group_enterobacterales=False):
+    """Taxon name of one NGS taxonomy string ('' = dropped): the genus field; eukaryotic reads are dropped. With
+    group_enterobacterales every read of the order Enterobacteriales / Enterobacterales, with or without genus."""
+    parts = tax.split(';')
+    if parts[0] == 'Eukaryota':
+        return ''
+    if group_enterobacterales and any(p.strip().strip('"') in ('Enterobacteriales', 'Enterobacterales') for p in parts):
+        return ENTEROBACTERALES
+    return parts[-2] if len(parts) >= 2 else ''
+
+
+def _media_to_drop(media):
+    """Plate-count / MALDI media not in media, as patterns for drop_column."""
+    unknown = set(media) - set(ALL_MEDIA)
+    if unknown:
+        raise ValueError(f'unknown media {sorted(unknown)}, known: {ALL_MEDIA}')
+    return [m for m in ALL_MEDIA if m not in media]
+
+
+def get_bacteria_for_model(exps_maldi, exps_ngs, path_data, cutoff=0., cutoff_prop=0., drop_taxa=(), group_enterobacterales=False):
+    """Load MALDI and NGS experiments and return their shared filtered bacterial set.
+    The selection uses MALDI of PC and MRS only (VRBD plates exist only for a few experiments and are selective).
+    drop_taxa: NGS taxa removed before the shares are computed (e.g. SUSPECTED_NGS_CONTAMINANTS; default none).
+    group_enterobacterales: Enterobacterales as one taxon in NGS and MALDI (default False)."""
+    df_ngs = get_all_experiments_dataframe(partial(read_ngs, drop_taxa=drop_taxa, group_enterobacterales=group_enterobacterales),
+                                           exps_ngs, path_data+'NGS/')
     df_ngs = dtf.drop_column(df_ngs, ['M2'])
     df_ngs, bact_ngs = dtf.preprocess_dataframe(df_ngs, cutoff=cutoff, cutoff_prop=cutoff_prop, calc_prop=False)
 
-    df_maldi = get_all_experiments_dataframe(read_maldi, exps_maldi, path_data+'MALDI/')
+    df_maldi = get_all_experiments_dataframe(partial(read_maldi, group_enterobacterales=group_enterobacterales), exps_maldi,
+                                             path_data+'MALDI/')
     df_maldi = dtf.drop_column(df_maldi, ['M2', 'VRBD'])
     df_maldi, bact_maldi = dtf.preprocess_dataframe(df_maldi, cutoff=cutoff, cutoff_prop=cutoff_prop, calc_prop=False)
     bact_all = dtf.intersection(bact_ngs.values, bact_maldi.values)
     return bact_all, df_maldi.T[bact_all].T, df_ngs.T[bact_all].T
 
 
-def sample_totals(exps_maldi, exps_ngs, path_data='experiments/'):
+def sample_totals(exps_maldi, exps_ngs, path_data='experiments/', drop_taxa=(), group_enterobacterales=False, media=DEFAULT_MEDIA):
     """Colonies identified on each MALDI plate and reads of each NGS sample, as Series indexed like the columns of the
-    MALDI and NGS data frames of prepare_ZL2030_data (same reading and the same filters, before proportions)."""
+    MALDI and NGS data frames of prepare_ZL2030_data (same reading and the same filters, before proportions; use the
+    same drop_taxa, group_enterobacterales and media as there)."""
     df_maldi = get_all_experiments_dataframe(partial(read_maldi, counts=True), exps_maldi, path_data+'MALDI/')
-    df_maldi = dtf.drop_column(df_maldi, ['M2', 'VRBD'])
-    df_ngs = get_all_experiments_dataframe(partial(read_ngs, counts=True), exps_ngs, path_data+'NGS/')
+    df_maldi = dtf.drop_column(df_maldi, ['M2'] + _media_to_drop(media))
+    df_ngs = get_all_experiments_dataframe(partial(read_ngs, counts=True, drop_taxa=drop_taxa,
+                                                   group_enterobacterales=group_enterobacterales), exps_ngs, path_data+'NGS/')
     df_ngs = dtf.drop_column(df_ngs, ['M2'])
     return df_maldi.sum(), df_ngs.sum()
 
@@ -53,20 +108,30 @@ def counts_per_composition(dfs, totals):
     return arr_maldi, arr_ngs
 
 
-def read_all_data_in_df(exps_platecount, exps_maldi, exps_ngs, path_data, path_out, bact_all=None, cutoff=0., cutoff_prop=0., add_name=''):
-    """Load, align, and save calibration dataframes for the selected experiments."""
+def read_all_data_in_df(exps_platecount, exps_maldi, exps_ngs, path_data, path_out, bact_all=None, cutoff=0., cutoff_prop=0., add_name='',
+                        drop_taxa=(), group_enterobacterales=False, media=DEFAULT_MEDIA):
+    """Load, align, and save calibration dataframes for the selected experiments.
+    media: plate-count and MALDI media used (default PC and MRS; add 'VRBD' for the Enterobacterales medium)."""
     df_platecount = get_all_experiments_dataframe(read_platecount, exps_platecount, path_data+'microbiology/')
-    df_platecount =dtf.drop_column(df_platecount, ['M2', 'VRBD'])
+    df_platecount =dtf.drop_column(df_platecount, ['M2'] + _media_to_drop(media))
     if bact_all is None:
         df_maldi = get_all_experiments_dataframe(read_maldi, exps_maldi, path_data+'MALDI/')
-        df_ngs = get_all_experiments_dataframe(read_ngs, exps_ngs, path_data+'NGS/')
+        df_ngs = get_all_experiments_dataframe(partial(read_ngs, drop_taxa=drop_taxa), exps_ngs, path_data+'NGS/')
         # Restore ngs and maldi dataframes on missing bacteria
         #bact_all = sorted(set(list(bact_ngs.values) + list(bact_maldi.values)))
         #df_maldi, df_ngs, T_x, s_x_predefined = fm.dtf.make_df_maldi_ngs_compatible(df_maldi, df_ngs, cutoff=cutoff0)
         df_ngs = df_ngs.T[bact_all].T
         df_maldi = df_maldi.T[bact_all].T
     else:
-        bact_all, df_maldi, df_ngs = get_bacteria_for_model(exps_maldi, exps_ngs, path_data, cutoff=cutoff, cutoff_prop=cutoff_prop)
+        bact_all, df_maldi, df_ngs = get_bacteria_for_model(exps_maldi, exps_ngs, path_data, cutoff=cutoff, cutoff_prop=cutoff_prop,
+                                                            drop_taxa=drop_taxa, group_enterobacterales=group_enterobacterales)
+        if 'VRBD' in media:   # the selection uses PC and MRS only; add the VRBD plates, aligned to the same taxa
+            df_vrbd = get_all_experiments_dataframe(partial(read_maldi, group_enterobacterales=group_enterobacterales),
+                                                    exps_maldi, path_data+'MALDI/').filter(like='VRBD')
+            df_vrbd = dtf.drop_column(df_vrbd, ['M2'])
+            df_vrbd = df_vrbd.fillna(0.)
+            df_vrbd = df_vrbd.loc[:, df_vrbd.sum() > 0]          # shares of all genera; the rest becomes Others below
+            df_maldi = pd.concat([df_maldi, df_vrbd.reindex(df_maldi.index).fillna(0.)], axis=1)
 
     df_maldi, bact_all = dtf.add_rest_bacteria(df_maldi, bact_all)
     df_ngs, _ = dtf.add_rest_bacteria(df_ngs, bact_all)
@@ -93,23 +158,32 @@ def read_all_data_in_df(exps_platecount, exps_maldi, exps_ngs, path_data, path_o
     return data, T_x, s_x_predefined
 
 
-def prepare_ZL2030_data(exps_platecount, exps_maldi, exps_ngs, cutoff=0., cutoff_prop=0., path='', add_name=''):
-    """Prepare the ZL2030 calibration data and return observations and filtering defaults."""
-    bact_all, df_maldi_all, df_ngs_all = get_bacteria_for_model(exps_maldi, exps_ngs, 'experiments/', cutoff=cutoff, cutoff_prop=cutoff_prop)
+def prepare_ZL2030_data(exps_platecount, exps_maldi, exps_ngs, cutoff=0., cutoff_prop=0., path='', add_name='', drop_taxa=(),
+                        group_enterobacterales=False, media=DEFAULT_MEDIA):
+    """Prepare the ZL2030 calibration data and return observations and filtering defaults.
+    drop_taxa: NGS taxa removed before the shares are computed (e.g. SUSPECTED_NGS_CONTAMINANTS; default none);
+    group_enterobacterales: Enterobacterales as one taxon in NGS and MALDI (default False);
+    media: plate-count and MALDI media (default PC, MRS; ALL_MEDIA adds VRBD, the medium of the Enterobacterales).
+    Pass the same options to sample_totals; the number of media of the model is len(media)."""
+    bact_all, df_maldi_all, df_ngs_all = get_bacteria_for_model(exps_maldi, exps_ngs, 'experiments/', cutoff=cutoff, cutoff_prop=cutoff_prop,
+                                                                drop_taxa=drop_taxa, group_enterobacterales=group_enterobacterales)
     dfs_calibr, T_x, s_x_predefined = read_all_data_in_df(exps_platecount, exps_maldi, exps_ngs, 'experiments/', path, bact_all=bact_all,
-                                                          cutoff=cutoff, cutoff_prop=cutoff_prop, add_name=add_name)
+                                                          cutoff=cutoff, cutoff_prop=cutoff_prop, add_name=add_name, drop_taxa=drop_taxa,
+                                                          group_enterobacterales=group_enterobacterales, media=media)
     return dfs_calibr, bact_all, T_x, s_x_predefined
 
 
-def prepare_ZL2030_data_for_prediction(exps, bact_all, path_data, path_out='', add_name=''):
-    """Load prediction experiments and align their bacteria to the calibration set."""
+def prepare_ZL2030_data_for_prediction(exps, bact_all, path_data, path_out='', add_name='', drop_taxa=(),
+                                       group_enterobacterales=False, media=DEFAULT_MEDIA):
+    """Load prediction experiments and align their bacteria to the calibration set (same options as the calibration)."""
     df_platecount = get_all_experiments_dataframe(read_platecount, exps, path_data+'microbiology/')
-    df_platecount = dtf.drop_column(df_platecount, ['M2', 'VRBD'])
-    df_maldi = get_all_experiments_dataframe(read_maldi, exps, path_data+'MALDI/')
-    df_maldi = dtf.drop_column(df_maldi, ['M2', 'VRBD'])
+    df_platecount = dtf.drop_column(df_platecount, ['M2'] + _media_to_drop(media))
+    df_maldi = get_all_experiments_dataframe(partial(read_maldi, group_enterobacterales=group_enterobacterales), exps, path_data+'MALDI/')
+    df_maldi = dtf.drop_column(df_maldi, ['M2'] + _media_to_drop(media))
     df_maldi, _ = dtf.preprocess_dataframe(df_maldi, cutoff=0., cutoff_prop=0., calc_prop=False)
 
-    df_ngs = get_all_experiments_dataframe(read_ngs, exps, path_data+'NGS/')
+    df_ngs = get_all_experiments_dataframe(partial(read_ngs, drop_taxa=drop_taxa, group_enterobacterales=group_enterobacterales),
+                                           exps, path_data+'NGS/')
     df_ngs = dtf.drop_column(df_ngs, ['M2'])
     df_ngs, _ = dtf.preprocess_dataframe(df_ngs, cutoff=0., cutoff_prop=0., calc_prop=False)
 
@@ -197,8 +271,9 @@ def read_platecount(exp_name, dir_data=''):
     return df.groupby('Properties').sum()
 
 
-def read_maldi(exp_name, dir_data='', counts=False):
-    """Read MALDI isolate-identification data and return genus proportions by sample."""
+def read_maldi(exp_name, dir_data='', counts=False, group_enterobacterales=False):
+    """Read MALDI isolate-identification data and return genus proportions by sample (counts=True: identified colonies).
+    group_enterobacterales: the genera of ENTEROBACTERALES_GENERA summed into one taxon 'Enterobacterales'."""
     filename =  f'Data on bacteria identified by MALDI-Biotyper - {_get_exp_filename(exp_name)}'
     media_filenames = ['_MRS_Aerob_wachsende_Milchsäurebakterien', '_PC_Aerobe_Keimzahl (Gesamtkeimzahl)', '_VRBD_Enterobacterales']
     if int(exp_name[1:3]) < 15:
@@ -216,6 +291,9 @@ def read_maldi(exp_name, dir_data='', counts=False):
     else:
         df_maldi = pd.read_excel(dir_data + filename+media_filenames[1] + '.xlsx', keep_default_na=True)
         df_maldi = _df_maldi_transform(df_maldi, exp_name, dir_data, counts=counts)
+    if group_enterobacterales:
+        df_maldi = df_maldi.groupby([ENTEROBACTERALES if g in ENTEROBACTERALES_GENERA else g for g in df_maldi.index]).sum()
+        df_maldi.index.name = 'Genus'
     return df_maldi
         
 
@@ -264,15 +342,17 @@ def _rename_maldi_samples(f):
     return "-".join(["_".join([f1, fspl[2], fspl[-5], fspl[-4], fspl[-1][:-2]]), 'maldi'])
 
 
-def read_ngs(exp_name, **kwargs):
-    """Read NGS data using the file format appropriate for the experiment number."""
-    if int(exp_name[1:]) <= 7:
-        return read_ngs1(exp_name, **kwargs)
-    else:
-        return read_ngs2(exp_name, **kwargs)
+def read_ngs(exp_name, counts=False, drop_taxa=(), **kwargs):
+    """Read NGS data using the file format appropriate for the experiment number.
+    drop_taxa: taxa whose reads are removed before the proportions are computed (default none);
+    group_enterobacterales (keyword, passed on): all Enterobacterales reads as one taxon, see ENTEROBACTERALES_GENERA."""
+    reader = read_ngs1 if int(exp_name[1:]) <= 7 else read_ngs2
+    df = reader(exp_name, counts=True, **kwargs)
+    df = df.drop(index=[t for t in drop_taxa if t in df.index])
+    return df if counts else df.apply(calc_proportion)
 
 
-def read_ngs1(exp_name, dir_data='', counts=False):
+def read_ngs1(exp_name, dir_data='', counts=False, group_enterobacterales=False):
     """Read the earlier NGS table format and aggregate counts into genus proportions."""
     exp_temps = EXP_TEMPS
     temp = exp_temps[exp_name[:3]]
@@ -280,7 +360,7 @@ def read_ngs1(exp_name, dir_data='', counts=False):
     df = pd.read_csv(dir_data + filename, sep='\t', header=[0, 1, 2, 3], keep_default_na=True, encoding="ISO-8859-1")
     df = df.dropna(axis=1, how='all')
     df=df.rename(columns={"70% N2 + 30% CO2": "M2", "70% O2 + 30% CO2": "M1"})
-    d = {"Genus": ["_".join(bact.split(";")[-2:-1]) if bact.split(";")[0]!='Eukaryota' else '' for bact in df[df.columns[1]].values]}
+    d = {"Genus": [_ngs_genus(bact, group_enterobacterales) for bact in df[df.columns[1]].values]}
     for f in df.filter(like='M').columns:
         d["_".join([exp_name, f[0], f'{int(temp):02d}C', f'{int(f[1]):02d}', 'ngs'])] = df[f].values
     df = pd.DataFrame(data=d)
@@ -289,7 +369,7 @@ def read_ngs1(exp_name, dir_data='', counts=False):
     return df if counts else df.apply(calc_proportion)
 
 
-def read_ngs2(exp_name, dir_data='', counts=False):
+def read_ngs2(exp_name, dir_data='', counts=False, group_enterobacterales=False):
     """Read the later NGS table format and aggregate counts into genus proportions."""
     filename = f'ZOTU_Table_{exp_name.split("-")[0]}.tsv'
     if int(exp_name[1:])<12 and int(exp_name[1:])>=8:
@@ -298,8 +378,7 @@ def read_ngs2(exp_name, dir_data='', counts=False):
         df = pd.read_csv(dir_data + filename, sep='\t', header=[0, 1, 2, 3, 4, 5, 6], skiprows=[7, 8],  keep_default_na=True, encoding="ISO-8859-1")
 
     df = df.drop(columns=[df.columns[1]]).dropna(axis=1, how='all')
-    d = {"Genus": ["_".join(bact.split(";")[-2:-1]) if bact.split(";")[0]!='Eukaryota' else ''
-                   for bact in df[df.columns[0]].values]}
+    d = {"Genus": [_ngs_genus(bact, group_enterobacterales) for bact in df[df.columns[0]].values]}
     for f in df.filter(like='V').__iter__():
         if f[2].strip() == 'O2':
             atm = 'M1'

@@ -50,7 +50,7 @@ def calibration_setup(out, counts=False):
     Dirichlet-multinomial with the colonies of each plate and the reads of each sample (as the in-silico error model),
     plate counts with relative noise; otherwise all three with relative noise."""
     dfs, bact, T_x, s_x_predefined = zl.prepare_ZL2030_data(ms.EXPS, ms.EXPS_MALDI, ms.EXPS_NGS, cutoff=ms.CUTOFF,
-                                                            cutoff_prop=ms.CUTOFF_PROP, path=out, add_name='_zl2030')
+                                                            cutoff_prop=ms.CUTOFF_PROP, path=out, add_name='_zl2030', **ms.DATA_OPTIONS)
     bact = list(dfs[1].index)
     media = sorted(set(s.split('_')[-1].split('-')[0] for s in dfs[1].columns))
     setup = fm.pest.define_calibr_setup_insilico(
@@ -61,7 +61,7 @@ def calibration_setup(out, counts=False):
     setup['data_array'] = fm.dtf.extract_observables_from_df(dfs)
     maldi_n, ngs_dm = None, None
     if counts:
-        maldi_n, n_ngs = zl.counts_per_composition(dfs, zl.sample_totals(ms.EXPS_MALDI, ms.EXPS_NGS))
+        maldi_n, n_ngs = zl.counts_per_composition(dfs, zl.sample_totals(ms.EXPS_MALDI, ms.EXPS_NGS, **ms.DATA_OPTIONS))
         ngs_dm = (n_ngs, NGS_CONCENTRATION)
     setup.update(s_max_penalty=ms.S_MAX_PENALTY, noise_model=ms.NOISE_MODEL, maldi_n=maldi_n, ngs_dm=ngs_dm,
                  jax_options={'structured_jacobian': True})

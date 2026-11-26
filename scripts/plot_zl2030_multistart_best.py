@@ -153,7 +153,7 @@ if __name__ == '__main__':
 
     temps = zl.EXP_TEMPS
     dfs, _, T_x, s_x_predefined = zl.prepare_ZL2030_data(ms.EXPS, ms.EXPS_MALDI, ms.EXPS_NGS, cutoff=ms.CUTOFF,
-                                                              cutoff_prop=ms.CUTOFF_PROP, path=out, add_name='_zl2030')
+                                                              cutoff_prop=ms.CUTOFF_PROP, path=out, add_name='_zl2030', **ms.DATA_OPTIONS)
     bact, media = list(dfs[1].index), sorted(set(s.split('_')[-1].split('-')[0] for s in dfs[1].columns))
     n_cl = len(bact)
     setup = fm.pest.define_calibr_setup_insilico(

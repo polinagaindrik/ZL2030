@@ -69,7 +69,12 @@ CUTOFF, CUTOFF_PROP = 0.1, 0.001    # gives the 11 prevalent species + Others of
 EXPS_NGS = [f'V{i:02d}' for i in range(1, 13)] + [f'V{i:02d}' for i in range(15, 21)] + ['V22']
 EXPS_MALDI = [f'V{i:02d}' for i in range(1, 20)] + ['V22']
 EXPS = [f'V{i:02d}' for i in range(1, 10)] + ['V11', 'V12'] + [f'V{i:02d}' for i in range(16, 20)]
-N_MEDIA = 2
+# Options of the data reading (zl2030.prepare_ZL2030_data, sample_totals); the defaults reproduce the earlier fits.
+#   group_enterobacterales=True: all Enterobacterales reads (NGS) and genera (MALDI) as one taxon 'Enterobacterales'
+#   media=zl.ALL_MEDIA: plate counts and MALDI also on VRBD, the selective medium of the Enterobacterales
+#   drop_taxa=zl.SUSPECTED_NGS_CONTAMINANTS: remove the probable reagent contaminants from NGS
+DATA_OPTIONS = dict(group_enterobacterales=False, media=('PC', 'MRS'), drop_taxa=())
+N_MEDIA = len(DATA_OPTIONS['media'])
 
 # the data readers use paths relative to the root of this repository (experiments/)
 OUT = os.path.join(ROOT, 'out', 'multistart_logk' if LOG_K else 'multistart', '')
@@ -118,7 +123,7 @@ if __name__ == '__main__':
 
     temps = zl.EXP_TEMPS
     dfs, bact, T_x, s_x_predefined = zl.prepare_ZL2030_data(EXPS, EXPS_MALDI, EXPS_NGS, cutoff=CUTOFF,
-                                                                 cutoff_prop=CUTOFF_PROP, path=OUT, add_name='_zl2030')
+                                                                 cutoff_prop=CUTOFF_PROP, path=OUT, add_name='_zl2030', **DATA_OPTIONS)
     bact = list(dfs[1].index)
     media = sorted(set(s.split('_')[-1].split('-')[0] for s in dfs[1].columns))
     n_cl = len(bact)
