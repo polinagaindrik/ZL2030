@@ -2,13 +2,13 @@
 Plot the best fit so far of main_zl2030_multistart.py, also while it is running (reads the history file of each start)
 ======================================================================================================================
 
-Output: out/multistart/best_so_far/
+Output: out/tested/multistart/best_so_far/
     overview_plate_counts_best_vs_earlier.png   plate counts of all experiments: data, best fit, earlier parameter set
     platecount_<medium>_const_model.png               plate counts of all experiments per temperature, best fit (as plot_model_results.py)
     best/      per-experiment figures of the best fit (plate counts, MALDI, NGS, cells)
     earlier/   the same for the earlier parameter set
 Run from anywhere:
-    python scripts/plot_zl2030_multistart_best.py [--log-k] [--run out/refine_corrected]
+    python scripts/plot_zl2030_multistart_best.py [--log-k] [--run out/tested/refine_corrected]
 """
 import glob
 import os
@@ -22,7 +22,7 @@ import zl2030 as zl
 from fusion_model.plotting import plotting_templates
 import main_zl2030_multistart as ms
 
-# --run <folder>: another run folder, e.g. out/refine_corrected (default: the folder of main_zl2030_multistart.py)
+# --run <folder>: another run folder, e.g. out/tested/refine_corrected (default: the folder of main_zl2030_multistart.py)
 RUN = (os.path.join(os.path.abspath(sys.argv[sys.argv.index('--run') + 1]), '') if '--run' in sys.argv else ms.OUT)
 # --result <json>: plot the parameters of this result file (into its folder)
 RESULT = os.path.abspath(sys.argv[sys.argv.index('--result') + 1]) if '--result' in sys.argv else None

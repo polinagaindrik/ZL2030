@@ -7,8 +7,8 @@ import sys
 import time
 
 LOG_K = '--log-k' in sys.argv  # second batch, see main_zl2030_multistart.py
-DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'out', 'multistart_logk' if LOG_K else 'multistart', '')
-if '--run' in sys.argv:  # another run folder, e.g. out/refine_corrected
+DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'out', 'tested', 'multistart_logk' if LOG_K else 'multistart', '')
+if '--run' in sys.argv:  # another run folder, e.g. out/tested/refine_corrected
     DIR = os.path.join(os.path.abspath(sys.argv[sys.argv.index('--run') + 1]), '')
 N_STARTS = 48 if LOG_K else 96
 OTHER_RUN = '--run' in sys.argv

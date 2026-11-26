@@ -12,7 +12,7 @@ Constant-temperature series of ZL2030 (names V.._SH_M[01]_<T>_<day>_..., atmosph
 4. Spearman correlations of the plateau with the covariates: 2 degC only, and all temperatures after centring plateau and
    covariates within each temperature. Few experiments and many covariates: read as hypotheses, not as proof.
 
-Output: out/plateau_covariates/ (tables, summary.txt, figures)
+Output: out/current/plateau_covariates/ (tables, summary.txt, figures)
     python scripts/plateau_covariates.py
 """
 import glob
@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(ROOT)
-OUT = 'out/plateau_covariates/'
+OUT = 'out/current/plateau_covariates/'
 os.makedirs(OUT, exist_ok=True)
 NAME = re.compile(r'^(V\d\d)_SH_(M[01])_(02C|10C|14C|RT)_(\d\d)_MRI\d\d_CC(\d\d)_(PC|MRS|VRBD)\d\d$')
 # temperatures from the fit inputs: the raw files label some series wrongly (V03: '02C', sampled as 14 degC)
@@ -125,7 +125,7 @@ for i, e in E.iterrows():
 E['exp_no'] = E.exp.str[1:].astype(int)
 E['pkg_sd0_PC'] = E.exp.map(pk[(pk.medium == 'PC') & (pk.day == 0)].groupby('exp')['mean'].std())
 
-ngs_file = 'out/k_shared_nexp0/dataframe_ngs_zl2030.pkl'
+ngs_file = 'out/current/k_shared_nexp0/dataframe_ngs_zl2030.pkl'
 if os.path.exists(ngs_file):
     N = pd.read_pickle(ngs_file)
     N = N / N.sum()

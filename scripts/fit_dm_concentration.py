@@ -12,10 +12,10 @@ change by less than A_TOL (log10) and the total improves by less than TOTAL_TOL,
 Total -2 log L (comparable between starts, not with the relative-noise costs):
     -2 log L_DM(MALDI; A_MALDI) + -2 log L_DM(NGS; A_NGS) + n_pc ln(SSR_pc / n_pc) + max-S penalty
 
-Output (default out/dm_fit/): Result_calibration_zl2030_dm.json (best start), start_costs.csv, start<r>.json (each
+Output (default out/tested/dm_fit/): Result_calibration_zl2030_dm.json (best start), start_costs.csv, start<r>.json (each
 start: parameters, history of A and costs), history_dm_start<r>_round<q>.csv.
 Run from the root of this repository:
-    python scripts/fit_dm_concentration.py [--source out/refine_corrected] [--out out/dm_fit] [--n-starts 12]
+    python scripts/fit_dm_concentration.py [--source out/tested/refine_corrected] [--out out/tested/dm_fit] [--n-starts 12]
                                            [--rounds 6] [--minutes 60] [--k-structure full]
 --k-structure: reduced inhibition matrix (fusion_model cost_function.K_STRUCTURES): 'column' k_ij = b_j, 'product'
 k_ij = a_i b_j, 'none' k_ij = 0. The start points are the closest reduced form of the source points. The models are
@@ -30,7 +30,7 @@ the media are handled by the model) or 'taxonomy' (lactic acid bacteria versus a
 (log10 c in the lambda_1 entries; --lambda-groups taxonomy / all: genera sharing c). Free-lambda sources are converted
 with lambda(6 C) and mu(6 C) kept.
 --source: a run of another fit (its history files), or an earlier run of this script (its start<r>.json) to continue it.
-Figures: python scripts/plot_zl2030_multistart_best.py --result out/dm_fit/Result_calibration_zl2030_dm.json
+Figures: python scripts/plot_zl2030_multistart_best.py --result out/tested/dm_fit/Result_calibration_zl2030_dm.json
 """
 import argparse
 import json
@@ -245,8 +245,8 @@ def base_setup(out, structure='full', groups_method='none', groups_from=None, la
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('--source', default='out/refine_corrected')
-    ap.add_argument('--out', default='out/dm_fit')
+    ap.add_argument('--source', default='out/tested/refine_corrected')
+    ap.add_argument('--out', default='out/tested/dm_fit')
     ap.add_argument('--n-starts', type=int, default=12)
     ap.add_argument('--rounds', type=int, default=6)
     ap.add_argument('--minutes', type=float, default=60., help='time limit of each least-squares refinement')

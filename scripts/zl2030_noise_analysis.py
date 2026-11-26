@@ -20,7 +20,7 @@ and estimates, for each data type, the quantities the in-silico noise model of t
 
 Only aggregated statistics and figures are written; no measurement values leave this repository.
 Run from the root of this repository:
-    python scripts/zl2030_noise_analysis.py [--out out/noise_analysis/] [--copy-to ../fusion_model_paper/report/figures/]
+    python scripts/zl2030_noise_analysis.py [--out out/current/noise_analysis/] [--copy-to ../fusion_model_paper/report/figures/]
 """
 import argparse
 import glob
@@ -44,7 +44,7 @@ import matplotlib.pyplot as plt
 warnings.filterwarnings('ignore')
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# taxa of the ZL2030 calibration (11 prevalent genera + the remainder), as in out/dm_fit/Result_calibration_zl2030_dm.json
+# taxa of the ZL2030 calibration (11 prevalent genera + the remainder), as in out/tested/dm_fit/Result_calibration_zl2030_dm.json
 MODEL_TAXA = ['Acinetobacter', 'Brochothrix', 'Carnobacterium', 'Chryseobacterium', 'Corynebacterium', 'Kocuria',
               'Lactobacillus', 'Lactococcus', 'Leuconostoc', 'Pseudomonas', 'Psychrobacter']
 NGS_DEPTH_SPLIT = 26000      # pairs with both samples at least this deep vs. shallower pairs
@@ -54,11 +54,11 @@ MALDI_N_SCENARIOS = {'low': 96, 'baseline': 48, 'high': 24}
 PC_SIGMA_SCENARIOS = {'low': 0.10, 'baseline': 0.15, 'high': 0.30}
 FROZEN_X0_FILE = os.path.join(ROOT, '..', 'fusion_model_paper', 'model_paper', 'setups', 'setup', 'Result_calibration_zl2030_copy.json')
 # the x0 bounds of these fits are (0, 5)
-NEWER_FITS = {'multistart_logk': 'out/multistart_logk/Result_calibration_zl2030_multistart.json',
-              'refine_corrected': 'out/refine_corrected/Result_calibration_zl2030_refine.json',
-              'refine_lamexp05': 'out/refine_lamexp05/Result_calibration_zl2030_refine.json',
-              'dm_fit': 'out/dm_fit/Result_calibration_zl2030_dm.json',
-              'dm_fit2': 'out/dm_fit2/Result_calibration_zl2030_dm.json'}
+NEWER_FITS = {'multistart_logk': 'out/tested/multistart_logk/Result_calibration_zl2030_multistart.json',
+              'refine_corrected': 'out/tested/refine_corrected/Result_calibration_zl2030_refine.json',
+              'refine_lamexp05': 'out/tested/refine_lamexp05/Result_calibration_zl2030_refine.json',
+              'dm_fit': 'out/tested/dm_fit/Result_calibration_zl2030_dm.json',
+              'dm_fit2': 'out/current/dm_fit2/Result_calibration_zl2030_dm.json'}
 
 # colours (validated categorical palette, light surface)
 C = {'blue': '#2a78d6', 'orange': '#eb6834', 'aqua': '#1baf7a', 'yellow': '#eda100', 'magenta': '#e87ba4',
@@ -609,7 +609,7 @@ def x0_stats(x0, n_exp, n_cl, bounds):
 
 
 X0_SETS = {  # label: (result file, bounds of x0 in that calibration)
-    'earlier calibration (in-silico setup until 11 Nov 2026)': ('out/noise_analysis/Result_calibration_zl2030_copy_until_2026-11-11.json', (1., 4.5)),
+    'earlier calibration (in-silico setup until 11 Nov 2026)': ('out/current/noise_analysis/Result_calibration_zl2030_copy_until_2026-11-11.json', (1., 4.5)),
     'dm_fit2 (in-silico setup since 11 Nov 2026)': (FROZEN_X0_FILE, (0., 5.)),
 }
 
@@ -685,7 +685,7 @@ def to_jsonable(o):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('--out', default='out/noise_analysis/')
+    ap.add_argument('--out', default='out/current/noise_analysis/')
     ap.add_argument('--copy-to', default=None, help='folder for the figures and summary.json, e.g. ../fusion_model_paper/report/figures/')
     args = ap.parse_args()
     os.chdir(ROOT)

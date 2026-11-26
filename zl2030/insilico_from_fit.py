@@ -7,7 +7,7 @@ from fusion_model.data.insilico_models import get_random_initial_vals, model_exp
 from fusion_model.data.output import json_dump, read_from_json
 from fusion_model.model import fusion_model_linear
 
-ZL2030_GENERAL_MEDIUM_DIR = 'out/exp_model/calibration/'  # Result_calibration_zl2030_copy.json
+ZL2030_GENERAL_MEDIUM_DIR = 'out/old_before_2026-09-01/exp_model/calibration/'  # Result_calibration_zl2030_copy.json
 
 
 def zl2030_general_medium(n_cl=12, dir=ZL2030_GENERAL_MEDIUM_DIR, file='Result_calibration_zl2030_copy.json'):
@@ -43,7 +43,7 @@ def get_res_from_zl2030dict(n_cl, model='linear', dir=''):
 
 def model_2media_linearfromzl2030(n_cl, temps, ntr, S_matrix_setup, x10=None, path='', inhib=False, noise=0., rel_noise=0., add_name=''):
     """Generate two-medium linear-model data using parameters fitted to ZL2030 data."""
-    s_x_zl2030, T_x, param_ode = get_res_from_zl2030dict(n_cl, model='linear', dir='out/linear_model/calibration/')
+    s_x_zl2030, T_x, param_ode = get_res_from_zl2030dict(n_cl, model='linear', dir='out/old_before_2026-09-01/linear_model/calibration/')
     s_x = s_x_zl2030
     if not inhib:
         param_ode[-n_cl*n_cl:] = 0.
@@ -64,7 +64,7 @@ def model_2media_linearfromzl2030(n_cl, temps, ntr, S_matrix_setup, x10=None, pa
 def model_2media_expfromzl2030(n_cl, temps, ntr, S_matrix_setup, x10=None, path='', inhib=False, noise=0., rel_noise=0., add_name=''):
     """Generate two-medium exponential-model data using ZL2030 calibration parameters."""
     np.random.seed(46987)
-    s_x_zl2030, T_x, param_ode = get_res_from_zl2030dict(n_cl, model='exponential', dir='out/exp_model/calibration/')
+    s_x_zl2030, T_x, param_ode = get_res_from_zl2030dict(n_cl, model='exponential', dir='out/old_before_2026-09-01/exp_model/calibration/')
     s_x = s_x_zl2030
     media = ['MRS', 'PC']
     return model_exp(n_cl, temps, ntr, s_x, T_x, media, x10=None, path='', inhib=False, noise=0., rel_noise=0., add_name='')

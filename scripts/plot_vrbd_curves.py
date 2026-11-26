@@ -1,7 +1,7 @@
 """Plate counts on VRBD (Enterobacterales) of the constant-temperature ZL2030 series, one panel per temperature, data only
 (mean over the plates of a day, connected; bars: SD of the plates). Same experiments, colours and markers as the model
 plots (plot_results/plot_model_results.py). With --with-pc the PC counts of the same experiments are drawn faintly.
-Reads out/plateau_covariates/plates_long.csv (scripts/plateau_covariates.py).
+Reads out/current/plateau_covariates/plates_long.csv (scripts/plateau_covariates.py).
     python scripts/plot_vrbd_curves.py [--with-pc]
 """
 import os, sys
@@ -15,7 +15,7 @@ from fusion_model.plotting import plotting_templates as pt
 
 WITH_PC = '--with-pc' in sys.argv
 MARKERS = ['^', 'o', 'D', 's', 'X', '.', '*', 'P', 'd', 'x', '^', 'o', 'D', 's']
-P = pd.read_csv('out/plateau_covariates/plates_long.csv')
+P = pd.read_csv('out/current/plateau_covariates/plates_long.csv')
 P = P[P.exp != 'V10']                        # only day 0 and 1
 D = P.groupby(['exp', 'T', 'day', 'medium']).log.agg(['mean', 'std']).reset_index()
 temps = [2, 10, 14]
@@ -36,6 +36,6 @@ for ax, T, lab in zip(axes, temps, 'abc'):
     ax.set_xlim(-0.3, 17.4 if T == 2 else 10.3)
 axes[0].set_ylabel(r'log CFU g$^{-1}$, VRBD', fontsize=14)
 
-name = 'out/plateau_covariates/platecount_VRBD_data' + ('_with_PC' if WITH_PC else '') + '.png'
+name = 'out/current/plateau_covariates/platecount_VRBD_data' + ('_with_PC' if WITH_PC else '') + '.png'
 fig.savefig(name, dpi=150, bbox_inches='tight')
 print('saved', name)

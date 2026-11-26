@@ -12,7 +12,7 @@ particular between the two sequencing-table formats (V01-V07 vs V08 onwards): a 
 a drift with storage day inside experiments to a change of s.
 
 Only aggregated statistics are written. Run from the root of this repository:
-    python scripts/check_ngs_batch_bias.py [--out out/noise_analysis/] [--min-colonies 3]
+    python scripts/check_ngs_batch_bias.py [--out out/current/noise_analysis/] [--min-colonies 3]
 """
 import argparse
 import glob
@@ -90,7 +90,7 @@ def fit_two_way(df, n_iter=50):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--out', default='out/noise_analysis/')
+    ap.add_argument('--out', default='out/current/noise_analysis/')
     ap.add_argument('--min-colonies', type=int, default=3, help='MALDI colonies of the genus needed on the plate')
     ap.add_argument('--copy-to', default=None)
     args = ap.parse_args()

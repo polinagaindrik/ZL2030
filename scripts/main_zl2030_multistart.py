@@ -3,7 +3,7 @@ Multistart fit of the 12-species in-silico model to the ZL2030 data
 ===================================================================
 
 Fits the ODE model and bounds of the in-silico case (fusion_model2, define_calibr_setup_insilico) to the real data, to
-compare with the parameter set used for the in-silico studies (out/exp_model/calibration/Result_calibration_zl2030_copy.json).
+compare with the parameter set used for the in-silico studies (out/old_before_2026-09-01/exp_model/calibration/Result_calibration_zl2030_copy.json).
 
 Differences to that earlier fit (differential evolution with the ZL2030 bounds and cost_sum_and_geometric_mean):
   - objective: -2 log L with the relative noise model and the max S = 1 penalty.
@@ -14,7 +14,7 @@ Differences to that earlier fit (differential evolution with the ZL2030 bounds a
 Start 0 is the earlier parameter set (clipped to the bounds), the other starts are Latin hypercube points. Comparing
 start 0 with the earlier set shows the effect of objective and bounds alone.
 
-Output: out/multistart/
+Output: out/tested/multistart/
     Result_calibration_zl2030_multistart.json   best parameters
     comparison_parameters.csv                   earlier vs. best ODE and S parameters, range over the best starts
     start_costs.csv                             best cost of every start
@@ -26,7 +26,7 @@ Second kind of run, longer: start 0 continues the best point of the first run, t
 the inhibition terms sampled on a log scale; at most 20 h per start:
     python scripts/main_zl2030_multistart.py --log-k
 The in-silico bounds of k_ij start at 0, so the Latin hypercube samples them linearly (median about 10, against 1.4 in
-the earlier set). Here they are sampled in K_START_RANGE instead. Output: out/multistart_logk/
+the earlier set). Here they are sampled in K_START_RANGE instead. Output: out/tested/multistart_logk/
 """
 import glob
 import json
@@ -77,9 +77,9 @@ DATA_OPTIONS = dict(group_enterobacterales=False, media=('PC', 'MRS'), drop_taxa
 N_MEDIA = len(DATA_OPTIONS['media'])
 
 # the data readers use paths relative to the root of this repository (experiments/)
-OUT = os.path.join(ROOT, 'out', 'multistart_logk' if LOG_K else 'multistart', '')
-EARLIER = os.path.join(ROOT, 'out', 'exp_model', 'calibration', 'Result_calibration_zl2030_copy.json')
-FIRST_RUN = os.path.join(ROOT, 'out', 'multistart', 'Result_calibration_zl2030_multistart.json')
+OUT = os.path.join(ROOT, 'out', 'tested', 'multistart_logk' if LOG_K else 'multistart', '')
+EARLIER = os.path.join(ROOT, 'out', 'old_before_2026-09-01', 'exp_model', 'calibration', 'Result_calibration_zl2030_copy.json')
+FIRST_RUN = os.path.join(ROOT, 'out', 'tested', 'multistart', 'Result_calibration_zl2030_multistart.json')
 
 
 def best_of_start(fname):

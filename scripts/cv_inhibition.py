@@ -18,7 +18,7 @@ paired differences to a reference structure (mean and standard error over the fo
 Run from the root of this repository:
     python scripts/cv_inhibition.py --structures product shared none full --n-jobs 10
     python scripts/cv_inhibition.py --summary
-Output: out/cv_inhibition/<structure>_<experiment>.json, summary.csv
+Output: out/tested/cv_inhibition/<structure>_<experiment>.json, summary.csv
 """
 import argparse
 import glob
@@ -37,20 +37,20 @@ sys.path[:0] = [ROOT, os.path.join(ROOT, 'scripts')]
 import numpy as np
 import pandas as pd
 
-RUNS = {'full': 'out/dm_fit2', 'product': 'out/k_product2', 'shared': 'out/k_shared', 'shared_c': 'out/k_sharedc',
-        'shared_abundance': 'out/k_shared_abundance', 'shared_taxonomy': 'out/k_shared_taxonomy',
-        'column': 'out/k_column', 'none': 'out/k_none', 'product_taxonomy': 'out/k_product_taxonomy',
-        'product_gmodel': 'out/k_product_gmodel', 'shared_gmodel': 'out/k_shared_gmodel',
+RUNS = {'full': 'out/current/dm_fit2', 'product': 'out/tested/k_product2', 'shared': 'out/tested/k_shared', 'shared_c': 'out/tested/k_sharedc',
+        'shared_abundance': 'out/tested/k_shared_abundance', 'shared_taxonomy': 'out/tested/k_shared_taxonomy',
+        'column': 'out/tested/k_column', 'none': 'out/tested/k_none', 'product_taxonomy': 'out/tested/k_product_taxonomy',
+        'product_gmodel': 'out/tested/k_product_gmodel', 'shared_gmodel': 'out/tested/k_shared_gmodel',
         # lag models (lambda = c mu: lratio, by taxonomy / one c: _tax / _all, lambda_exp = 0: lconst) and N_exp = 0
-        'shared_lratio': 'out/k_shared_lratio', 'shared_lratio_tax': 'out/k_shared_lratio_tax',
-        'shared_lratio_all': 'out/k_shared_lratio_all', 'shared_lconst': 'out/k_shared_lconst',
-        'shared_taxonomy_lratio': 'out/k_shared_taxonomy_lratio', 'shared_nexp0': 'out/k_shared_nexp0',
+        'shared_lratio': 'out/tested/k_shared_lratio', 'shared_lratio_tax': 'out/tested/k_shared_lratio_tax',
+        'shared_lratio_all': 'out/tested/k_shared_lratio_all', 'shared_lconst': 'out/tested/k_shared_lconst',
+        'shared_taxonomy_lratio': 'out/tested/k_shared_taxonomy_lratio', 'shared_nexp0': 'out/current/k_shared_nexp0',
         # inhibitor pool of the pool model: F1 (produced by all growing cells), F2 (produced with the new cells)
-        'shared_taxonomy_F1': 'out/k_shared_taxonomy_F1', 'shared_taxonomy_F2': 'out/k_shared_taxonomy_F2',
-        'shared_F1': 'out/k_shared_F1', 'shared_F2': 'out/k_shared_F2'}
+        'shared_taxonomy_F1': 'out/tested/k_shared_taxonomy_F1', 'shared_taxonomy_F2': 'out/tested/k_shared_taxonomy_F2',
+        'shared_F1': 'out/tested/k_shared_F1', 'shared_F2': 'out/tested/k_shared_F2'}
 X0_DAYS = 1.            # days used to fit the initial values of the left-out experiment
 TRAIN_MINUTES = 45.
-OUT = 'out/cv_inhibition/'
+OUT = 'out/tested/cv_inhibition/'
 
 _RAW = {}
 

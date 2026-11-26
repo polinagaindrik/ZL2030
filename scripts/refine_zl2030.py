@@ -2,21 +2,21 @@
 Local refinement of the best points of a multistart run on the current data
 ============================================================================
 
-Takes the best point of each of the N_STARTS best starts of a multistart run (out/multistart_logk/ by default) and
+Takes the best point of each of the N_STARTS best starts of a multistart run (out/tested/multistart_logk/ by default) and
 refines them with the same model, bounds and objective as main_zl2030_multistart.py, on the data as read now. Use it
 after a change of the data reading, e.g. the averaged day-0 subsamples (commit 6c0668e), or to converge a run that
 stopped at its time limit.
 
-Output (default out/refine_corrected/):
+Output (default out/tested/refine_corrected/):
     Result_calibration_zl2030_refine.json   best parameters
     start_costs.csv                         each refined start: source start, cost before and after
     optimization_history_refine_start*.csv  history of each start
 Run from the root of this repository:
-    python scripts/refine_zl2030.py [--source out/multistart_logk] [--out out/refine_corrected] [--n-starts 12]
+    python scripts/refine_zl2030.py [--source out/tested/multistart_logk] [--out out/tested/refine_corrected] [--n-starts 12]
                                     [--max-minutes 360] [--counts] [--lambda-exp-min SPECIES=VALUE ...]
 --counts: MALDI and NGS with count likelihoods (multinomial / Dirichlet-multinomial with the colonies of each plate and
 the reads of each sample), as the in-silico error model. Its costs cannot be compared with those of relative noise.
-Figures and progress: add --run out/refine_corrected to plot_zl2030_multistart_best.py / show_multistart_progress.py.
+Figures and progress: add --run out/tested/refine_corrected to plot_zl2030_multistart_best.py / show_multistart_progress.py.
 """
 import argparse
 import glob
@@ -111,8 +111,8 @@ def best_starts(source, n):
 
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
-    ap.add_argument('--source', default='out/multistart_logk')
-    ap.add_argument('--out', default='out/refine_corrected')
+    ap.add_argument('--source', default='out/tested/multistart_logk')
+    ap.add_argument('--out', default='out/tested/refine_corrected')
     ap.add_argument('--n-starts', type=int, default=12)
     ap.add_argument('--max-minutes', type=float, default=360)
     ap.add_argument('--n-jobs', type=int, default=None)

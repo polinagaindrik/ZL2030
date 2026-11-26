@@ -6,7 +6,7 @@ Runs of fit_dm_concentration.py with --lambda-mode free / const / ratio (--lambd
 free parameters is read from each result (n_free, including the two concentrations A), so the counts follow the bounds
 of the run. Nested pairs (reduced model, full model) get a likelihood-ratio test with df = difference of free parameters.
 Run from the root of this repository:
-    python scripts/compare_lag_models.py [--out out/compare_lag_models.csv]
+    python scripts/compare_lag_models.py [--out out/current/compare_lag_models.csv]
 """
 import argparse
 import json
@@ -18,14 +18,14 @@ from scipy.stats import chi2
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RUNS = {
-    'free': 'out/k_shared',                        # lambda = 10^l1 T^l_exp, shared inhibition, 12 strengths
-    'ratio': 'out/k_shared_lratio',                # lambda_i = c_i mu_i(T)
-    'ratio_tax': 'out/k_shared_lratio_tax',        # c: lactic acid bacteria / others
-    'ratio_all': 'out/k_shared_lratio_all',        # one c
-    'const': 'out/k_shared_lconst',                # lambda_exp = 0
-    'nexp0': 'out/k_shared_nexp0',                 # free lambda, capacity independent of T
-    'tax_free': 'out/k_shared_taxonomy',           # free lambda, inhibitor strengths by taxonomy
-    'tax_ratio': 'out/k_shared_taxonomy_lratio',   # lambda = c mu, inhibitor strengths by taxonomy
+    'free': 'out/tested/k_shared',                        # lambda = 10^l1 T^l_exp, shared inhibition, 12 strengths
+    'ratio': 'out/tested/k_shared_lratio',                # lambda_i = c_i mu_i(T)
+    'ratio_tax': 'out/tested/k_shared_lratio_tax',        # c: lactic acid bacteria / others
+    'ratio_all': 'out/tested/k_shared_lratio_all',        # one c
+    'const': 'out/tested/k_shared_lconst',                # lambda_exp = 0
+    'nexp0': 'out/current/k_shared_nexp0',                 # free lambda, capacity independent of T
+    'tax_free': 'out/tested/k_shared_taxonomy',           # free lambda, inhibitor strengths by taxonomy
+    'tax_ratio': 'out/tested/k_shared_taxonomy_lratio',   # lambda = c mu, inhibitor strengths by taxonomy
 }
 # (reduced, full): nested pairs
 NESTED = [('ratio', 'free'), ('const', 'free'), ('ratio_tax', 'ratio'), ('ratio_all', 'ratio_tax'),
@@ -46,7 +46,7 @@ def read(folder):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument('--out', default='out/compare_lag_models.csv')
+    ap.add_argument('--out', default='out/current/compare_lag_models.csv')
     args = ap.parse_args()
     rows = {k: r for k, v in RUNS.items() if (r := read(v)) is not None}
     missing = [k for k in RUNS if k not in rows]

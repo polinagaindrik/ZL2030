@@ -7,7 +7,7 @@ MALDI and NGS with estimated concentrations, plate counts relative). The structu
 total -2 log L can be compared directly; AIC = -2 log L + 2 p and BIC = -2 log L + p ln(n) weigh it against the number
 of free parameters p (incl. the two concentrations) and the n data points.
 
-    python scripts/compare_inhibition_structures.py [--runs full=out/dm_fit2 product=out/k_product column=out/k_column none=out/k_none]
+    python scripts/compare_inhibition_structures.py [--runs full=out/current/dm_fit2 product=out/current/k_product column=out/tested/k_column none=out/tested/k_none]
 Runs that are not finished are read from their start<r>.json files (best start so far).
 """
 import argparse
@@ -21,10 +21,10 @@ from scipy.stats import chi2
 import pandas as pd
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEFAULT = ['full=out/dm_fit2', 'product=out/k_product2', 'shared=out/k_shared', 'shared_abundance=out/k_shared_abundance',
-           'shared_taxonomy=out/k_shared_taxonomy', 'shared_c=out/k_sharedc',
-           'product_gmodel=out/k_product_gmodel', 'product_taxonomy=out/k_product_taxonomy',
-           'shared_gmodel=out/k_shared_gmodel', 'column=out/k_column', 'none=out/k_none']
+DEFAULT = ['full=out/current/dm_fit2', 'product=out/tested/k_product2', 'shared=out/tested/k_shared', 'shared_abundance=out/tested/k_shared_abundance',
+           'shared_taxonomy=out/tested/k_shared_taxonomy', 'shared_c=out/tested/k_sharedc',
+           'product_gmodel=out/tested/k_product_gmodel', 'product_taxonomy=out/tested/k_product_taxonomy',
+           'shared_gmodel=out/tested/k_shared_gmodel', 'column=out/tested/k_column', 'none=out/tested/k_none']
 N_CL, N_EXPS, N_MEDIA = 12, 15, 2
 K_PARAMS = {'full': N_CL * (N_CL - 1), 'product': 2 * N_CL - 1, 'shared': 2 * N_CL - 1,
             'shared_abundance': N_CL - 1 + 8, 'shared_taxonomy': N_CL - 1 + 2, 'shared_c': 2 * N_CL, 'product_gmodel': N_CL - 1 + 8, 'product_taxonomy': N_CL - 1 + 2, 'shared_gmodel': N_CL - 1 + 5, 'column': N_CL, 'none': 0}
@@ -144,6 +144,6 @@ if __name__ == '__main__':
     print(df[cols].round(2).to_string(index=False))
     if n_data:
         print(f'n = {n_data} data points')
-    df.to_csv('out/inhibition_structures_comparison.csv', index=False)
+    df.to_csv('out/tested/inhibition_structures_comparison.csv', index=False)
     if n_data and 'p' in df:
         by_form(df, n_data)
