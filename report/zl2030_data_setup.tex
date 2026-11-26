@@ -1,0 +1,230 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.3cm]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\setlist{itemsep=2pt}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{url}
+\urlstyle{tt}
+\usepackage{hyperref}
+\usepackage[htt]{hyphenat}
+\sloppy
+\hypersetup{colorlinks=true, linkcolor=MidnightBlue, citecolor=MidnightBlue, urlcolor=MidnightBlue}
+\usepackage[backend=biber, style=numeric, sorting=none, maxbibnames=3]{biblatex}
+\addbibresource{../../fusion_model_paper/references.bib}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\todo}[1]{\textcolor{red}{[#1]}}
+
+\title{Working with the ZL2030 data:\\ \large data types, media, taxa and noise model of the calibration}
+\author{Polina Gaindrik \\ \small Freiburg Center for Data Analysis and Modeling, University of Freiburg}
+\date{25 November 2026}
+
+\begin{document}
+\maketitle
+
+\noindent
+This note describes how the ZL2030 measurements enter the fusion model: which experiments and samples are used, what each data type measures and misses, how the modelled taxa are chosen, and how each data type enters the likelihood. Each decision is given with its reason. The code is in the repository \path{zl2030data-modeling} (reading: \path{zl2030/read_data.py}; settings of the calibration: \path{scripts/main_zl2030_multistart.py}).
+
+\section{Experiments and samples}
+
+\begin{itemize}
+\item \textbf{Series.} Chilled pork packed under modified atmosphere, experiments V01--V28. The calibration uses the constant-temperature series (2\,$^\circ$C: V01, V07, V08, V11, V12, V16--V19; 10\,$^\circ$C: V02, V05, V09; 14\,$^\circ$C: V03, V04, V06). Variants with a temperature or handling change (chill-chain interruption \code{CCD}, stored meat \code{STOR}, \code{SLH}) are excluded from the calibration and kept for validation.
+\item \textbf{Temperatures} are taken from \code{EXP\_TEMPS} in \path{read_data.py}, never from the sample names: the colony counts of V03 are labelled \code{02C}, but V03 is a 14\,$^\circ$C series (sampling days and growth of the 14\,$^\circ$C runs, MALDI and NGS labelled 14C).
+\item \textbf{Atmosphere.} Only M1 (70\,\% O$_2$ + 30\,\% CO$_2$) is used; M0 is the sample of day 0 (before packing). M2 (70\,\% N$_2$ + 30\,\% CO$_2$) was measured as well but is not used.
+\item \textbf{Sampling.} 2\,$^\circ$C: days 0--17; 10 and 14\,$^\circ$C: days 0--10. V10 has only days 0 and 1 and is not used.
+\end{itemize}
+
+\section{Plate counts}
+
+\begin{itemize}
+\item \textbf{Media.} PC (total aerobic count), MRS (lactic acid bacteria, LAB) and VRBD (Enterobacterales). The calibration uses PC and MRS by default; VRBD can be added (option \code{media}, Section~\ref{sec:options}). At 2\,$^\circ$C VRBD stays at 1--3\,$\log_{10}$\,CFU/g, close to the detection limit, but at 14\,$^\circ$C Enterobacterales reach about half of the PC count (see Section~\ref{sec:ngs}). A selective medium only shows the part of the community that grows on it, so several media are needed to describe a community~\cite{balestra_increasing_1997}; culture misses cells that are viable but not culturable~\cite{kell_viability_1998, lagier_current_2015}.
+\item \textbf{What a count contains.} Every colony is counted, also non-target organisms: yeasts grow on MRS (no antifungal is added) and make up a third of the MALDI identifications on MRS on days 0--3 at 2\,$^\circ$C, but less than 1\,\% on PC. The model describes this with the media matrix $S$: $S^m_i$ is the fraction of species $i$ that grows on medium $m$.
+\item \textbf{Replicates and noise.} Day 0: five packages, each with replicate plates; later days: one package with replicate plates. SD on the $\log_{10}$ scale: 0.10--0.11 between replicate plates of a package (PC, MRS), 0.09--0.11 between packages of day 0; plate counts carry a counting and dilution error of this size~\cite{sutton2011accuracy}. The spread between experiments at the same temperature is much larger (SD 0.5 at 2\,$^\circ$C): these are batch effects of the meat, not measurement noise.
+\item \textbf{Do not multiply NGS shares by plate counts.} A plate count is specific to its medium; an NGS share is relative to all bacterial DNA. Their product is not the abundance of a taxon. The model links the data types only through the state $x(t)$, $S$ and $T$.
+\end{itemize}
+
+\section{MALDI-TOF MS}
+
+\begin{itemize}
+\item \textbf{What it measures.} Colonies picked from the PC and MRS plates are identified by MALDI-TOF MS; a plate gives counts of identified colonies per genus (median 45 colonies per plate, interquartile range 39--48). One colony is one organism, so rare taxa are missed when few colonies are picked, and the identification depends on the spectra library~\cite{patel_maldi-tof_2015}.
+\item MALDI identifies yeasts (Candida, Rhodotorula, Debaryomyces, \dots) and Enterobacterales to genus level (Serratia, Enterobacter, Cronobacter, Hafnia, \dots). MALDI of VRBD plates (V01--V03 only) is 94\,\% Enterobacterales and is not used.
+\end{itemize}
+
+\section{NGS (16S rRNA amplicon sequencing)}\label{sec:ngs}
+
+\begin{itemize}
+\item \textbf{What it measures.} Reads of the 16S rRNA gene per taxon (ZOTU tables, two file formats: V01--V07 and V08 on), aggregated to genus. Median depth 52\,000 reads per sample (interquartile range 25\,000--70\,000, minimum 335). The data are compositional: only the shares carry information, not the read numbers~\cite{gloor_microbiome_2017}.
+\item \textbf{Bias.} Extraction, PCR and 16S copy number multiply each taxon by a taxon-specific efficiency~\cite{mclarenConsistentCorrectable2019}. A constant bias of this form is absorbed by the scale of $x$ and $S$; the model therefore sets the NGS visibility $T_i = 1$ for all modelled taxa.
+\item \textbf{Eukaryotic reads} (taxonomy starting with \emph{Eukaryota}) are removed when the tables are read. 16S sequencing targets bacteria, so yeasts are practically invisible to NGS, while they are counted on the plates and identified by MALDI. Chloroplast reads are classified as bacteria (Streptophyta) and are not removed by this step (see contamination below).
+\item \textbf{Reads without genus are dropped.} The reader keeps the genus field only. Most Enterobacterales reads are classified to family only (old taxonomy \emph{Enterobacteriales; Enterobacteriaceae}) and are therefore lost: up to 98\,\% of the reads of single 14\,$^\circ$C samples (median 80\,\% in V04), less than 1\,\% at 2\,$^\circ$C. This affects the NGS shares at 10 and 14\,$^\circ$C. The option \code{group\_enterobacterales} keeps them as one taxon (Section~\ref{sec:options}); it is off by default, so the earlier fits are reproduced.
+\item \textbf{Reagent contamination.} DNA extraction kits, PCR reagents and water contain bacterial DNA, which matters most in samples of low biomass~\cite{salter_reagent_2014}. Genera listed as kit contaminants by \textcite{salter_reagent_2014} that were never identified by MALDI among about 31\,000 colonies and whose share is highest at low bacterial load (Bradyrhizobium, Sphingomonas, Burkholderia, Deinococcus, Paracoccus, Propionibacterium, Ralstonia, Methylobacterium) and chloroplast reads (Streptophyta, plant DNA) are probably not meat flora. They are listed in \code{SUSPECTED\_NGS\_CONTAMINANTS} and are removed together with the eukaryotic reads when \code{drop\_taxa=SUSPECTED\_NGS\_CONTAMINANTS} is passed to \code{prepare\_ZL2030\_data} and \code{sample\_totals}; the default removes nothing. Together they are 0.08\,\% of the reads in the median sample and 2--3\,\% on days 1--3. Without sequenced blank controls this is circumstantial: the contaminant list also contains real meat genera (Pseudomonas, Acinetobacter, Brochothrix), and a share that falls with the load also fits real flora that does not grow. Culture is the deciding criterion.
+\end{itemize}
+
+\section{Choice of the modelled taxa}
+
+\begin{itemize}
+\item \textbf{Rule.} A genus is modelled if it reaches at least 10\,\% in at least one sample \emph{and} more than 0.1\,\% of all reads (colonies) overall, in NGS \emph{and} in MALDI (PC and MRS, atmosphere M1) (\code{CUTOFF, CUTOFF\_PROP = 0.1, 0.001}). Requiring both data types makes every modelled taxon observable in each of them.
+\item \textbf{Result.} 11 genera: Acinetobacter, Brochothrix, Carnobacterium, Chryseobacterium, Corynebacterium, Kocuria, Lactobacillus, Lactococcus, Leuconostoc, Pseudomonas, Psychrobacter. Psychrobacter is at the threshold (largest NGS share 10.05\,\%), so small changes of the reading can drop it: with \code{group\_enterobacterales} the 11 taxa are the same except that Enterobacterales replace Psychrobacter (largest NGS share then 9.92\,\%).
+\item \textbf{Others.} All remaining reads and colonies are summed into one taxon ``Others''. It is 9.0\,\% of the NGS reads and 20.5\,\% of the MALDI colonies (mean share per sample), and it does \emph{not} contain the same organisms in both data types:
+\end{itemize}
+
+\begin{center}
+\small
+\begin{tabular}{@{}p{3.6cm}rr>{\raggedright\arraybackslash}p{7.2cm}@{}}
+\toprule
+part of Others & NGS & MALDI & largest genera \\
+\midrule
+seen in both & 3.2\,\% & 8.8\,\% & Staphylococcus, Streptococcus, Stenotrophomonas, Myroides, Brevundimonas \\
+NGS only & 4.9\,\% & -- & Photobacterium, Propionibacterium, Weissella, Listeria, contaminants \\
+MALDI only (bacteria) & 0.2\,\% & 4.0\,\% & Serratia, Microbacterium, Kurthia, Rhodococcus, Enterobacter \\
+yeasts (MALDI only) & -- & 7.6\,\% & Candida, Rhodotorula, Debaryomyces \\
+rare in both ($<1$\,\% in every sample) & 0.6\,\% & -- & 366 genera \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent
+Culture and sequencing detect partly different organisms~\cite{sung_utility_2017, van_reckem_next-generation_2021}: Photobacterium grows poorly on the standard media, yeasts are not sequenced, Enterobacterales are named by MALDI but not by NGS. In the model this is the role of $S$ (which taxa grow on which medium) and $T$ (which taxa NGS sees): a taxon seen only by culture has $T_i = 0$, a taxon seen only by NGS has $S^m_i = 0$ on every medium. With a single Others taxon, $T = 1$ for all taxa and the NGS-only and culture-only parts of Others are not separated.
+
+\section{Estimating the noise parameters}\label{sec:noise}
+
+The noise of MALDI and NGS is described by a Dirichlet-multinomial: the shares $q$ of a sample are a Dirichlet draw around the true composition $p$ with concentration $A$ (scatter of the laboratory steps), and the $N$ counts (colonies or reads) are a multinomial draw from $q$ (counting error). For a share $p$ the measured share $\hat p = k/N$ then has
+\begin{equation}\label{eq:dmvar}
+\mathrm{Var}(\hat p) = p(1-p)\,\frac{N + A}{N(1 + A)} \;\approx\; p(1-p)\left[\frac{1}{A+1} + \frac{1}{N}\right] \quad (A \gg 1),
+\end{equation}
+where the first term is the laboratory scatter and the second the counting error. Large $A$ means little laboratory scatter; $A \to \infty$ is a pure multinomial. The log-likelihood of the counts $k_i$ of one sample is
+\begin{equation}\label{eq:dmlik}
+\log\mathcal{L} = \log\Gamma(A) - \log\Gamma(N+A) + \sum_i \Bigl[\log\Gamma(k_i + A p_i) - \log\Gamma(A p_i)\Bigr]
+\end{equation}
+(without the multinomial coefficient, which does not depend on the parameters). $A$ can be estimated in two ways: from replicate measurements, which gives the measurement error, or together with the model, which gives everything the model does not describe. All numbers below are computed by \path{scripts/zl2030_noise_analysis.py} (replicates) and \path{scripts/fit_dm_concentration.py} (model fit).
+
+\subsection{NGS: $A$ from replicate pairs}
+
+ZL2030 has 15 samples sequenced twice (sample ID and ID\,b; V12, V15, V16, all at 2\,$^\circ$C, atmosphere O$_2$). For each pair the two measurements $i = 1, 2$ with reads $N_i$ and counts $k_{ij}$ of taxon $j$ (the 11 model genera plus the rest) are compared with their pooled composition below. The read number $N_i$ is the sum of the reads of all taxa of sample $i$ in its ZOTU table, counted as in the calibration data: bacterial reads with a genus name, i.e.\ without eukaryotic reads and without reads classified only to family (mainly the unclassified Enterobacteriaceae, Section~\ref{sec:ngs}; at 2\,$^\circ$C, where all pairs are, at most 8\,\% of the reads of a sample). The read totals in the table headers also count these reads and are about 10\,\% larger (median 55\,500 against 50\,600 per sample).
+\begin{equation*}
+\hat p_j = \frac{k_{1j} + k_{2j}}{N_1 + N_2}.
+\end{equation*}
+
+\paragraph{Moment estimate.} The Pearson statistic of the pair and its degrees of freedom,
+\begin{equation*}
+X^2 = \sum_{i=1}^{2}\sum_j \frac{(k_{ij} - N_i \hat p_j)^2}{N_i \hat p_j}, \qquad \mathrm{dof} = (2-1)(J-1),
+\end{equation*}
+measure how much the two measurements differ. The degrees of freedom dof count the independent differences that $X^2$ compares: the $J$ shares of a measurement sum to 1 ($J-1$ free), and the pooled composition is estimated from the same two measurements ($2-1$ left); for a group of $m$ measurements (e.g.\ replicate plates) $\mathrm{dof} = (m-1)(J-1)$. With the 11 model genera and Others ($J = 12$) a pair has $\mathrm{dof} = 11$. If the measurements differ only by counting error, $X^2 \approx \mathrm{dof}$ on average, so $\varphi = X^2/\mathrm{dof}$ is the dispersion: $\varphi = 1$ means counting error only, $\varphi = 14$ a difference 14 times larger than counting explains. This is where Eq.~\eqref{eq:dmvar} enters: the dispersion is the ratio of the Dirichlet-multinomial variance to the variance of counting alone, $p(1-p)/N$,
+\begin{equation*}
+\varphi = \frac{p(1-p)\,\frac{N+A}{N(1+A)}}{p(1-p)\,\frac{1}{N}} = \frac{N+A}{1+A},
+\end{equation*}
+which does not depend on $p$, so all taxa of a pair can be combined in one $X^2$. (The maximum-likelihood estimate and the model fit use Eq.~\eqref{eq:dmlik}, not Eq.~\eqref{eq:dmvar}.) For two samples of different depth, under the Dirichlet-multinomial the expectation of $X^2/\mathrm{dof}$ is
+\begin{equation*}
+E\!\left[\frac{X^2}{\mathrm{dof}}\right] = \frac{a + b\,A}{1 + A},
+\end{equation*}
+with $a$ and $b$ computed from the read numbers of the pair (for equal depths $N_1 = N_2 = N$: $a = N$, $b = 1$, so $\varphi = (N + A)/(1 + A)$ and $A = (N - \varphi)/(\varphi - 1)$). For several pairs the sums are matched,
+\begin{equation*}
+\sum X^2 = \sum \mathrm{dof}\,\frac{a + bA}{1 + A} \quad\Longrightarrow\quad A = \frac{\sum \mathrm{dof}\cdot a - \sum X^2}{\sum X^2 - \sum \mathrm{dof}\cdot b}.
+\end{equation*}
+The read numbers of each pair enter through $a$ and $b$, so the counting error ($1/N$ term of Eq.~\eqref{eq:dmvar}) is subtracted at the depth of each pair; only the scatter beyond it is attributed to $A$.
+
+\emph{Interval (90\,\%, bootstrap over the pairs):} the pairs are resampled with replacement many times (as many pairs as there are, some drawn twice, some not at all), $A$ is recomputed for each resample, and the 5th and 95th percentiles of these values form the interval. It shows how much $A$ would change with another set of pairs of the same kind.
+
+\paragraph{Maximum-likelihood estimate.} $A$ maximises the sum of Eq.~\eqref{eq:dmlik} over all samples of all pairs, with the pooled composition $\hat p$ of each pair as $p$ and one common $A$. It uses the whole distribution of the counts, including rare taxa and zeros, while the moment estimate uses only $X^2$, which is dominated by the abundant taxa; the two estimates therefore weight the data differently and need not agree.
+
+\emph{Interval (95\,\%, profile likelihood):} all $A$ whose $-2\log\mathcal{L}$ is at most $\chi^2_{1,0.95} = 3.84$ above the minimum. It rests on the likelihood itself (asymptotic), not on resampling. The two intervals have different levels (90\,\% and 95\,\%) only for historical reasons of the analysis script.
+
+\begin{center}
+\small
+\begin{tabular}{@{}lrrrrr@{}}
+\toprule
+pairs & $n$ & depth\footnotemark & $\varphi$ & $A$ (moments, 90\,\%) & $A$ (ML, 95\,\%) \\
+\midrule
+both samples $\ge 26\,000$ reads & 9 & 39\,800 & 14.1 & 3270 (2220--5130) & 6170 (4730--7980) \\
+shallower & 6 & 11\,300 & 46.0 & 252 (138--846) & 417 (308--554) \\
+\bottomrule
+\end{tabular}
+\end{center}
+\footnotetext{Median over the pairs of the harmonic mean depth $N_h = 2N_1N_2/(N_1+N_2)$ of each pair. The harmonic mean is the effective depth of a pair: the counting error of the difference of two shares is $\propto 1/N_1 + 1/N_2 = 2/N_h$, so a pair with $N_1 \ne N_2$ behaves like two samples of depth $N_h$. It is only used to describe the pairs; the estimates of $A$ use $N_1$ and $N_2$ of each pair.}
+
+\noindent
+The shallow pairs give a smaller $A$ although the counting error is subtracted, so the difference is not a depth effect; the shallow pairs probably come from other sequencing runs. Which laboratory step the duplicates share (separate DNA extraction, separate PCR, or the same library sequenced twice) is not documented; only duplicates split before the extraction measure the whole $A$. The in-silico study uses $A = 2000$ (baseline), 5000 and 300.
+
+\subsection{MALDI: number of colonies $N$ and overdispersion}
+
+\begin{itemize}
+\item \textbf{Colonies per plate.} The protocol picks 48 colonies per plate; over all 775 plates the median of identified colonies is 46 (mode 48, interquartile range 35--48; PC 47, MRS 45). The fit uses the $N$ of each plate.
+\item \textbf{Replicate plates} exist only on day 0 (V08, V09: five subsamples CC01--CC05 on each medium; V13, V14: two), 10 groups with 42 plates. With the same Pearson statistic as above (plates of a group in place of the two measurements of a pair), $\varphi = 1.49$: the variance between plates is 1.5 times the counting variance, an equivalent of $N_{\mathrm{eff}} = 48/1.49 \approx 32$ colonies. The Dirichlet-multinomial gives $A = 715$ (ML, 95\,\% interval 297--$\infty$; moments 152), i.e.\ weak overdispersion, not significantly different from none. Because the plates come from different subsamples of the meat, this is an upper bound for the measurement error.
+\item \textbf{Missed taxa.} A taxon with pooled share $p$ is absent from a replicate plate with the frequency $(1-p)^N$ predicted by the multinomial, in every share range.
+\item So MALDI is close to a multinomial sample of the identified colonies. The in-silico study uses $N_{\mathrm{M}} = 48$ (baseline, the protocol value), 96 and 24.
+\end{itemize}
+
+\subsection{Plate counts: $\sigma$}
+
+The SD of $\log_{10}$ counts is 0.11 between replicate plates and 0.15 between subsamples of one condition, constant over the count range. The in-silico study uses $\sigma = 0.15$ (baseline), 0.10 and 0.30; in the fit $\sigma$ is not fixed but estimated (profiled, first term of the cost below).
+
+\subsection{$A$ estimated together with the model}
+
+In the calibration on ZL2030, $A_{\mathrm{MALDI}}$ and $A_{\mathrm{NGS}}$ are parameters of the cost. \path{fit_dm_concentration.py} alternates two steps until both $\log_{10} A$ change by less than 0.005 and the cost by less than 0.5: (i) the model parameters are refined with $A$ fixed; (ii) each $A$ is set to its maximum-likelihood value for the current model, i.e.\ the $A$ that maximises the sum of Eq.~\eqref{eq:dmlik} over all samples with the model shares as $p$. The result is $A_{\mathrm{MALDI}} = 7.5$ and $A_{\mathrm{NGS}} = 26.7$ (fit \path{out/dm_fit2}, 11 of 12 starts within 0.25 of the best $-2\log\mathcal{L}$); the later fits with shared inhibition give $A_{\mathrm{NGS}} \approx 19$--$20$. These values are two orders of magnitude below the replicate estimates: here $A$ absorbs all scatter of the data around the model, i.e.\ besides the measurement error the batch effects between experiments and the model error. It is the right weighting for the real-data fit, but not the measurement error of the methods.
+
+\section{Noise model and cost function}
+
+Each data type enters the cost $J = -2\log\mathcal{L}$ with its own noise model (parameters as in Section~\ref{sec:noise}):
+\begin{equation*}
+-2\log\mathcal{L} = n_{\mathrm{P}} \log\frac{J_{\mathrm{PC}}}{n_{\mathrm{P}}} + J_{\mathrm{MALDI}} + J_{\mathrm{NGS}},
+\end{equation*}
+\begin{itemize}
+\item \textbf{Plate counts:} log-normal error, $J_{\mathrm{PC}}$ the sum of squared $\log_{10}$ residuals over the $n_{\mathrm{P}}$ counts; the variance is estimated (profiled), which gives the first term.
+\item \textbf{MALDI and NGS:} $J_{\mathrm{MALDI}}$ and $J_{\mathrm{NGS}}$ are $-2$ times Eq.~\eqref{eq:dmlik} summed over all plates and samples, with $N$ of each plate (sample), the model shares $p_i$ and the concentration $A$ of the data type, estimated in the fit. \todo{Reference for the Dirichlet-multinomial for count compositions is not yet in references.bib.}
+\item \textbf{Effective overdispersion.} The estimated $A_{\mathrm{MALDI}} \approx 7.5$ and $A_{\mathrm{NGS}} \approx 19$--$27$ contain batch effects and model error. These errors are correlated in time (a whole curve of a batch is shifted), while the likelihood treats them as independent per sample, so the intervals of the fit are likely too narrow.
+\item An alternative under discussion is one profiled scale factor per data type, $n_{\mathrm{M}}\log(J_{\mathrm{MALDI}}/n_{\mathrm{M}})$ and $n_{\mathrm{N}}\log(J_{\mathrm{NGS}}/n_{\mathrm{N}})$, in place of the estimated $A$.
+\end{itemize}
+
+\subsection*{Residual check: reduced $\chi^2$}
+
+Whether a fit describes the data as well as the noise model allows is checked with the standardized residuals $r_k$ of all $n_r$ data points: for plate counts $r_k = (\log_{10} y_k - \log_{10} \hat y_k)/\sigma$, for MALDI and NGS randomized quantile residuals of the binomial and beta-binomial margins of the noise model (a count is mapped to the standard normal quantile of its cumulative probability under the noise model, with a uniform random draw inside the jump of the discrete distribution), which are standard normal if the counts follow the noise model. Their reduced $\chi^2$,
+\begin{equation*}
+\chi^2_{\mathrm{red}} = \frac{1}{n_r - p}\sum_{k=1}^{n_r} r_k^2,
+\end{equation*}
+with $p$ the number of estimated parameters, is the mean squared residual corrected for the parameters fitted to the same data. It is close to 1 if the data scatter around the fit as much as the noise model predicts; clearly above 1 indicates a misfit of the model or an underestimated noise, clearly below 1 overfitting or an overestimated noise. Under a correct model it scatters by about $\sqrt{2/(n_r - p)}$ (0.03--0.04 for the in-silico runs). For the ZL2030 fits $\sigma$ and $A$ are estimated, so $\chi^2_{\mathrm{red}} \approx 1$ is partly built in; there the pattern of the residuals over time and between experiments (e.g.\ a whole batch above the fit) is the more informative check.
+
+\section{Options of the data reading}\label{sec:options}
+
+The reading of the data has three options, set in one place for all ZL2030 fit scripts (\code{DATA\_OPTIONS} in \path{scripts/main_zl2030_multistart.py}) and passed to \code{prepare\_ZL2030\_data} and \code{sample\_totals}. Their defaults reproduce the data of the earlier fits exactly.
+
+\begin{center}
+\small
+\begin{tabular}{@{}l>{\raggedright\arraybackslash}p{4.2cm}>{\raggedright\arraybackslash}p{7.3cm}@{}}
+\toprule
+option & default & effect when set \\
+\midrule
+\code{group\_enterobacterales} & \code{False} & all reads of the order Enterobacteriales/Enterobacterales in NGS (with or without genus) and the Enterobacterales genera in MALDI (\code{ENTEROBACTERALES\_GENERA}, seven families) as one taxon ``Enterobacterales'' \\
+\code{media} & \code{('PC', 'MRS')} & \code{zl.ALL\_MEDIA} adds VRBD to plate counts and MALDI; the model then has three media \\
+\code{drop\_taxa} & \code{()} & \code{zl.SUSPECTED\_NGS\_CONTAMINANTS} removes the probable reagent contaminants from NGS \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent
+With \code{group\_enterobacterales=True} and VRBD:
+\begin{itemize}
+\item The modelled taxa are the 10 genera above without Psychrobacter, plus Enterobacterales and Others. The taxa are still selected with MALDI of PC and MRS only; the VRBD plates are added afterwards, aligned to the selected taxa.
+\item The Enterobacterales share of NGS reaches 92\,\% in single 14\,$^\circ$C samples (V04) and has a median of 0.08\,\% at 2\,$^\circ$C; MALDI of VRBD is 96\,\% Enterobacterales.
+\item On VRBD the recovery $S$ is fixed at 0 for every taxon that MALDI never identified on it: the Gram-positive taxa (Brochothrix, Carnobacterium, Corynebacterium, Kocuria, Lactobacillus, Lactococcus, Leuconostoc), which VRBD inhibits, and Chryseobacterium. $S$ stays free for Enterobacterales, Pseudomonas, Acinetobacter and Others.
+\item The data side is tested (shapes of all arrays, read totals per composition); a model fit with three media has not been run yet.
+\end{itemize}
+
+\section{Checklist}
+
+\begin{itemize}
+\item Temperatures from \code{EXP\_TEMPS}; constant-temperature series, atmosphere M1, day 0 from M0.
+\item Plate counts are medium-specific and include non-target organisms (yeasts on MRS); never combine them with NGS shares outside the model.
+\item MALDI and NGS see different organisms (yeasts, unclassified Enterobacterales, NGS-only taxa); the Others taxon is not the same in both.
+\item Keep the read totals consistent with the shares: \code{sample\_totals} needs the same \code{drop\_taxa} as \code{prepare\_ZL2030\_data}.
+\item The taxa selection is sensitive at the threshold (Psychrobacter); check it after any change of the reading.
+\item NGS at 10--14\,$^\circ$C is distorted while the unclassified Enterobacteriaceae reads are dropped (default); \code{group\_enterobacterales=True} keeps them.
+\item Early, low-biomass NGS samples are the most affected by contamination (e.g.\ V04 days 1--2: 85--92\,\% Enterobacteriaceae reads, but VRBD/PC below 1\,\%).
+\end{itemize}
+
+\printbibliography
+
+\end{document}
